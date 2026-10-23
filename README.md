@@ -7,6 +7,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **What the chat contains** (system prompt, tools, messages, free space)
 - **Sessions**: working, idle or blocked by a limit
 - **Totals**: messages sent, requests, tokens (total, cache reads, output, new input), per message and per request; click a box for its explanation
+- **Readable token unit**: choose what 1 Token equals — one A4 page, one book, one hour of writing, or one real token
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
 
 Everything is counted locally from `~/.claude/projects` (numbers only, no message text). Nothing is sent anywhere.
@@ -32,7 +33,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 
 ### In italiano
 
-Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero.
+Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
 Tutto viene contato sul tuo computer, senza mandare niente fuori.
 
 Creato da **y05mueller-jpg** (y05.mueller@gmail.com), pubblicato per la prima volta il 23 ottobre 2026.

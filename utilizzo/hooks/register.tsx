@@ -29,6 +29,17 @@ const comprimi = atom({ plugin: 'utilizzo', key: 'comprimi' } as const, '')
 const menu = atom({ plugin: 'utilizzo', key: 'menu' } as const, '')
 // il riquadro dei totali di cui si sta mostrando la spiegazione ('' nessuno)
 const info = atom({ plugin: 'utilizzo', key: 'info' } as const, '')
+const misura = atom({ plugin: 'utilizzo', key: 'misura' } as const, 'a4')
+
+// misure per rendere i token comprensibili. Un token è circa 3/4 di parola:
+// una pagina A4 di testo (~500 parole) ≈ 650 token; un libro di 300 pagine ≈ 200'000 token;
+// una persona scrive circa 40 parole al minuto, cioè ~3'200 token l'ora.
+const MISURE: Record<string, { nome: string; uno: string; tanti: string; token: number; spiega: string }> = {
+  a4: { nome: '1 pagina A4', uno: '', tanti: '', token: 650, spiega: '1 Token = 1 pagina A4 di testo (≈ 650 token reali)' },
+  libri: { nome: '1 libro', uno: '', tanti: '', token: 200000, spiega: '1 Token = 1 libro di 300 pagine (≈ 200 mila token reali)' },
+  ore: { nome: "1 ora di scrittura", uno: '', tanti: '', token: 3200, spiega: "1 Token = 1 ora di una persona che scrive (≈ 3'200 token reali)" },
+  token: { nome: '1 token reale', uno: '', tanti: '', token: 1, spiega: 'Token reali: i pezzetti di testo che Claude legge e scrive' },
+}
 
 // ---- numeri leggibili ----
 const intero = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'")
@@ -37,6 +48,11 @@ function breve(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',') + ' mln'
   if (n >= 1e4) return Math.round(n / 1e3) + ' mila'
   return intero(n)
+}
+// un numero di token reali riportato alla misura scelta (1 Token = 1 pagina A4, 1 libro…), es. "17 mila"
+function inMisura(n: number, m: string): string {
+  const v = n / (MISURE[m] ?? MISURE.a4).token
+  return v >= 1e4 ? breve(v) : v >= 10 ? intero(v) : v.toFixed(1).replace('.', ',').replace(',0', '')
 }
 const due = (n: number) => String(n).padStart(2, '0')
 const chiave = (a: number, m: number, g: number) => `${a}-${due(m + 1)}-${due(g)}`
@@ -193,7 +209,8 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
     const { Box, Text, Button, Select, Svg, Client } = $.ui.resolve(e) as any
     const d = await read($, dati), L = await read($, limiti), mem = await read($, memoria)
-    const s = await read($, scelta), mostraTutte = await read($, tutte), err = await read($, errore), espanso = await read($, aperto), elencoAperto = await read($, chatAperte), statoComprimi = await read($, comprimi), menuAperto = await read($, menu), infoAperta = await read($, info)
+    const s = await read($, scelta), mostraTutte = await read($, tutte), err = await read($, errore), espanso = await read($, aperto), elencoAperto = await read($, chatAperte), statoComprimi = await read($, comprimi), menuAperto = await read($, menu), infoAperta = await read($, info), m = await read($, misura)
+    const mis = (n: number) => inMisura(n, m)
     const ora = d?.aggiornato ?? Date.now()
     const disegno = (source: string, alt: string, w?: number, hh?: number, interattivo?: boolean) =>
       (Svg ? <Svg source={source} alt={alt} width={w} height={hh} isInteractive={interattivo ? true : undefined} /> : <Text dimColor>{alt}</Text>)
@@ -205,12 +222,12 @@ export const register: Register = on => {
       const voci: [string, string, string][] = [
         ['Messaggi inviati', intero(c.messaggi), 'quelli che scrivi tu'],
         ['Richieste', intero(c.richieste), 'i passi di lavoro di Claude'],
-        ['Token in totale', breve(c.token), 'tutto ciò che è passato'],
-        ['Token riletti', breve(c.cacheLetta), 'riletti dalla cache: costano molto meno'],
-        ['Per messaggio', breve(c.messaggi ? c.token / c.messaggi : 0), 'token in media'],
-        ['Per richiesta', breve(c.richieste ? c.token / c.richieste : 0), 'token in media'],
-        ['Scritti da Claude', breve(c.output), 'token di risposta'],
-        ['Nuovi in entrata', breve(c.input + c.cacheScritta), 'token letti la prima volta'],
+        ['Token in totale', mis(c.token), 'tutto ciò che è passato'],
+        ['Token riletti', mis(c.cacheLetta), 'riletti dalla cache: costano molto meno'],
+        ['Per messaggio', mis(c.messaggi ? c.token / c.messaggi : 0), 'Token in media'],
+        ['Per richiesta', mis(c.richieste ? c.token / c.richieste : 0), 'Token in media'],
+        ['Scritti da Claude', mis(c.output), 'Token di risposta'],
+        ['Nuovi in entrata', mis(c.input + c.cacheScritta), 'Token letti la prima volta'],
       ]
       const riquadro = ([nome, valore, nota]: [string, string, string]) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
@@ -316,7 +333,23 @@ export const register: Register = on => {
       sezione('Sessioni',
         <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> al lavoro · <Text bold>{conta('ferma')}</Text> ferme · <Text color="#ef4444" bold>{conta('bloccata')}</Text> bloccate</Text>,
         <Text dimColor>su {t.sessioni} in tutto</Text>),
-      sezione('Totale', riquadri(t, 'tot')),
+      sezione('Totale',
+        // la misura in cui mostrare i token: un pulsante, e solo quando lo premi compare l'elenco delle scelte
+        <Box flexDirection="row" alignItems="center" gap={1}>
+          <Button key="scegli-misura" label={MISURE[m]?.nome ?? '1 pagina A4'} onPress={() => { void update($, menu, (x: string) => (x === 'misura' ? '' : 'misura')) }} />
+          <Text>= 1 Token</Text>
+        </Box>,
+        menuAperto === 'misura' ? (
+          <Box flexDirection="column" gap={1} borderStyle="round" borderDimColor padding={1}>
+            <Box flexDirection="row" flexWrap="wrap" gap={1}>
+              {Object.entries(MISURE).map(([k, x]) => (
+                <Button key={`misura-${k}`} label={x.nome.replace(/^1 /, '')} variant={k === m ? 'primary' : undefined} onPress={() => { void update($, misura, () => k); void update($, menu, () => '') }} />
+              ))}
+            </Box>
+            <Text dimColor size="caption">{MISURE[m]?.spiega}</Text>
+          </Box>
+        ) : null,
+        riquadri(t, 'tot')),
     )
 
     // grafico del mese
@@ -351,7 +384,7 @@ export const register: Register = on => {
           ))}
           <Box flexShrink={0}><Button key="mese-dopo" label="▶" onPress={() => sposta(1)} /></Box>
         </Box>,
-        menuAperto ? (
+        menuAperto && menuAperto !== 'misura' ? (
           <Box flexDirection="row" flexWrap="wrap" gap={1} justifyContent="center" borderStyle="round" borderDimColor padding={1}>
             {(menuAperto === 'giorno' ? Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => [String(i + 1), String(i + 1)])
               : menuAperto === 'mese' ? MESI.map((m, i) => [String(i), m])
@@ -366,7 +399,7 @@ export const register: Register = on => {
         disegno(grafico(d, s), `Token per giorno di ${MESI[s.mese]} ${s.anno}`, undefined, 120, true),
         <Box flexDirection="column" alignItems="flex-start">
           <Text bold>{s.giorno} {MESI[s.mese]} {s.anno}</Text>
-          <Text dimColor>{breve(g?.token ?? 0)} token, {g?.messaggi ?? 0} messaggi</Text>
+          <Text dimColor>{mis(g?.token ?? 0)} Token, {g?.messaggi ?? 0} messaggi</Text>
         </Box>,
       ), sezione(`Totale di ${MESI[s.mese]} ${s.anno}`, riquadri(mese, 'mese')))
     }
@@ -388,7 +421,7 @@ export const register: Register = on => {
           {qui.map(x => (
             <Box flexDirection="column" key={`${g}-${x.id}`}>
               <Text bold>{x.stato === 'al lavoro' ? '● ' : x.stato === 'bloccata' ? '■ ' : ''}{x.titolo.slice(0, 48)}</Text>
-              <Text>{intero(x.messaggi)} messaggi · <Text bold>{breve(x.token)}</Text> token · {breve(x.richieste ? x.token / x.richieste : 0)} per richiesta</Text>
+              <Text>{intero(x.messaggi)} messaggi · <Text bold>{mis(x.token)}</Text> Token · {mis(x.richieste ? x.token / x.richieste : 0)} per richiesta</Text>
               <Text dimColor>{x.progetto} · ultima attività {fa(x.ultimo, Date.now())}</Text>
             </Box>
           ))}
