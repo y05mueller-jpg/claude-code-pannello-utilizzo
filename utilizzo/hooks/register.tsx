@@ -70,14 +70,15 @@ function inMisura(n: number, m: string): string {
   return v >= 1e4 ? breve(v) : v >= 10 ? intero(v) : dec(v, 1).replace(T.decimale + '0', '')
 }
 // griglia di scelta (mesi, anni) disegnata come immagine: caselle uguali con angoli smussati come i pulsanti dei giorni
-function grigliaSvg(voci: { nome: string; scelta: boolean }[], colonne: number): string {
+function grigliaSvg(voci: { nome: string; scelta: boolean; oggi?: boolean }[], colonne: number): string {
   const W = 300, cw = (W - (colonne - 1) * 6) / colonne, ch = 30, gap = 6, righe = Math.ceil(voci.length / colonne)
   const H = righe * ch + (righe - 1) * gap
   const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;')
   let r = ''
   voci.forEach((v, i) => {
     const x = (i % colonne) * (cw + gap), y = Math.floor(i / colonne) * (ch + gap)
-    r += `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" rx="6" fill="${v.scelta ? '#ffffff' : '#2b2b2b'}"/>`
+    // la scelta in bianco; oggi (giorno, mese o anno attuale) con il bordo blu
+    r += `<rect x="${x + 1.5}" y="${y + 1.5}" width="${cw - 3}" height="${ch - 3}" rx="6" fill="${v.scelta ? '#ffffff' : '#2b2b2b'}"${v.oggi ? ` stroke="${BLU}" stroke-width="2.5"` : ''}/>`
     r += `<text x="${x + cw / 2}" y="${y + ch / 2 + 6}" font-size="16.5" text-anchor="middle" font-family="system-ui, sans-serif" fill="${v.scelta ? '#111111' : '#e5e5e5'}">${esc(v.nome)}</text>`
   })
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" viewBox="0 0 ${W} ${H}">${r}</svg>`
@@ -235,11 +236,11 @@ export const register: Register = on => {
     const nuovaMisura = (e.data as any)?.misura
     if (typeof nuovaMisura === 'string') { await update($, misura, () => nuovaMisura); await update($, menu, () => ''); return {} }
     // mese o anno scelto nella griglia del menu (griglia-clic.tsx)
-    const nuovoMese = (e.data as any)?.mese, nuovoAnno = (e.data as any)?.anno
-    if (typeof nuovoMese === 'number' || typeof nuovoAnno === 'number') {
+    const nuovoMese = (e.data as any)?.mese, nuovoAnno = (e.data as any)?.anno, nuovoGiorno = (e.data as any)?.giorno
+    if (typeof nuovoMese === 'number' || typeof nuovoAnno === 'number' || typeof nuovoGiorno === 'number') {
       await update($, scelta, (v: Scelta | null) => {
         if (!v) return v
-        const x = { ...v, ...(typeof nuovoMese === 'number' ? { mese: nuovoMese } : {}), ...(typeof nuovoAnno === 'number' ? { anno: nuovoAnno } : {}) }
+        const x = { ...v, ...(typeof nuovoMese === 'number' ? { mese: nuovoMese } : {}), ...(typeof nuovoAnno === 'number' ? { anno: nuovoAnno } : {}), ...(typeof nuovoGiorno === 'number' ? { giorno: nuovoGiorno } : {}) }
         return { ...x, giorno: Math.min(x.giorno, giorniNelMese(x.anno, x.mese)) }
       })
       await update($, menu, () => '')
@@ -410,6 +411,30 @@ export const register: Register = on => {
         const x = { ...(v ?? s), ...nuova }
         return { ...x, giorno: Math.min(x.giorno, giorniNelMese(x.anno, x.mese)) }
       })
+      const adesso = new Date()
+      // griglia di scelta: immagine con le caselle (angoli smussati) e sopra, nella stessa disposizione,
+      // una zona invisibile per ogni casella che riceve il clic (griglia-clic.tsx)
+      const grigliaScelta = (chiave: string, voci: { v: number; nome: string; scelta: boolean; oggi?: boolean }[], colonne: number) => (
+        <Box position="relative" flexDirection="column">
+          {disegno(grigliaSvg(voci, colonne), chiave === 'giorno' ? T.giorno : chiave === 'mese' ? T.mese : T.anno)}
+          {Client && !senzaClic
+            ? <Box position="absolute" top={0} left={0} right={0} bottom={0} flexDirection="column">
+                {Array.from({ length: Math.ceil(voci.length / colonne) }, (_, r) => (
+                  <Box key={`riga-${chiave}-${r}`} flexDirection="row" flexGrow={1}>
+                    {Array.from({ length: colonne }, (_, c) => {
+                      const x = voci[r * colonne + c]
+                      return (
+                        <Box key={`zona-${chiave}-${r}-${c}`} width={`${Math.floor(100 / colonne)}%`} flexGrow={1}>
+                          {x ? <Client key={`clic-${chiave}-${x.v}`} module="./griglia-clic.tsx" width="100%" height="100%" props={{ dati: { [chiave]: x.v } }} /> : null}
+                        </Box>
+                      )
+                    })}
+                  </Box>
+                ))}
+              </Box>
+            : null}
+        </Box>
+      )
       const sposta = (passi: number) => { const m = s.mese + passi; void cambia({ anno: s.anno + Math.floor(m / 12), mese: ((m % 12) + 12) % 12 }) }
       const g = d.giorni[chiave(s.anno, s.mese, s.giorno)]
       const mese: Cifre = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0 }
@@ -444,39 +469,18 @@ export const register: Register = on => {
           {menuAperto === 'mese' || (menuAperto === 'anno' && anni.length > 1) ? (
             // griglia disegnata (angoli smussati) con sopra uno strato invisibile che riceve il clic (griglia-clic.tsx)
             <Box position="absolute" top={3} right={0} width={menuAperto === 'anno' && anni.length < 3 ? `${anni.length * 33}%` : '100%'} flexDirection="column" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
-              {(() => {
-                const voci = menuAperto === 'mese' ? T.mesi.map((nome, i) => ({ v: i, nome, scelta: i === s.mese })) : anni.map(a => ({ v: a, nome: String(a), scelta: a === s.anno }))
-                const colonne = menuAperto === 'anno' ? Math.min(3, anni.length) : 3
-                return (
-                  <Box position="relative" flexDirection="column">
-                    {disegno(grigliaSvg(voci, colonne), menuAperto === 'mese' ? T.mese : T.anno)}
-                    {Client && !senzaClic
-                      ? <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-                          <Client key={`griglia-${menuAperto}`} module="./griglia-clic.tsx" width="100%" height="100%" props={{ chiave: menuAperto, valori: voci.map(x => x.v), colonne }} />
-                        </Box>
-                      : null}
-                  </Box>
-                )
-              })()}
+              {grigliaScelta(menuAperto, menuAperto === 'mese'
+                ? T.mesi.map((nome, i) => ({ v: i, nome, scelta: i === s.mese, oggi: i === adesso.getMonth() && s.anno === adesso.getFullYear() }))
+                : anni.map(a => ({ v: a, nome: String(a), scelta: a === s.anno, oggi: a === adesso.getFullYear() })), menuAperto === 'anno' ? Math.min(3, anni.length) : 3)}
             </Box>
           ) : null}
           {/* giorni: finestra larga quanto tutto il riquadro, numeri in colonne allineate (7 per riga), sopra il grafico */}
           {menuAperto === 'giorno' ? (
-            <Box position="absolute" top={3} left={0} right={0} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
-              {Array.from({ length: Math.ceil(giorniNelMese(s.anno, s.mese) / 7) }, (_, r) => (
-                <Box key={`sett-${r}`} flexDirection="row">
-                  {Array.from({ length: 7 }, (_, c) => {
-                    const n = r * 7 + c + 1
-                    return (
-                      <Box key={`cella-${n}`} width="14%" alignItems="center">
-                        {n <= giorniNelMese(s.anno, s.mese)
-                          ? <Button key={`op-giorno-${n}`} label={String(n)} variant={n === s.giorno ? 'primary' : undefined} onPress={() => { void cambia({ giorno: n }); void update($, menu, () => '') }} />
-                          : null}
-                      </Box>
-                    )
-                  })}
-                </Box>
-              ))}
+            <Box position="absolute" top={3} left={0} right={0} flexDirection="column" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
+              {grigliaScelta('giorno', Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({
+                v: i + 1, nome: String(i + 1), scelta: i + 1 === s.giorno,
+                oggi: i + 1 === adesso.getDate() && s.mese === adesso.getMonth() && s.anno === adesso.getFullYear(),
+              })), 7)}
             </Box>
           ) : null}
         </Box>,
