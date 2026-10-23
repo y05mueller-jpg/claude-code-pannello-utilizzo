@@ -1,0 +1,1 @@
+{ "name": "utilizzo", "version": "0.1.0", "description": "Pannello Utilizzo: limiti, memoria, sessioni, messaggi e token, con grafico giornaliero per mese", "types": "./types/index.d.ts" }
