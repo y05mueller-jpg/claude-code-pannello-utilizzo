@@ -283,9 +283,8 @@ export const register: Register = on => {
     const pMem = mem?.percent ?? (mem?.tokens && mem.window ? (100 * mem.tokens) / mem.window : 0)
 
     const parti: any[] = [
-      <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <Text dimColor>{d ? T.aggiornato(fa(ora, Date.now())) : T.stoContando}</Text>
-      </Box>,
+      // solo mentre conta la prima volta; poi la riga sparisce
+      d ? null : <Text dimColor>{T.stoContando}</Text>,
       sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>),
       sezione(T.sezMemoria,
         // comprimere adesso: Claude riassume la chat e libera memoria, senza aspettare il 97%. Chiede conferma.
