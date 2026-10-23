@@ -48,6 +48,8 @@ const menu = atom({ plugin: 'utilizzo', key: 'menu' } as const, '')
 // il riquadro dei totali di cui si sta mostrando la spiegazione ('' nessuno)
 const info = atom({ plugin: 'utilizzo', key: 'info' } as const, '')
 const misura = atom({ plugin: 'utilizzo', key: 'misura' } as const, 'a4')
+// true quando il pannello è stato chiuso: sopra la casella dei messaggi compare il pulsante per riaprirlo
+const chiuso = atom({ plugin: 'utilizzo', key: 'chiuso' } as const, false)
 
 // misure per rendere i token comprensibili. Un token è circa 3/4 di parola:
 // una pagina A4 di testo (~500 parole) ≈ 650 token; un libro di 300 pagine ≈ 200'000 token;
@@ -152,7 +154,22 @@ async function comprimiChat($: any): Promise<string> {
 // ---- raccolta dei numeri ----
 let inCorso = false
 let linguaDa = ''
+// ogni 2 secondi: il pannello è ancora aperto? (l'app non avvisa quando lo si chiude). Una volta per caricamento del modulo.
+let controllo = false
+function controllaPannello($: any) {
+  if (controllo) return
+  controllo = true
+  $.clock.every(2000, () => {
+    void (async () => {
+      try {
+        const su = (await $.ui.panes()).some((p: any) => p.id === PANNELLO && p.isShown)
+        if ((await read($, chiuso)) === su) await update($, chiuso, () => !su)
+      } catch (x) { /* si riprova */ }
+    })()
+  })
+}
 async function aggiorna($: any) {
+  controllaPannello($)
   if (!linguaDa) {
     void update($, menu, () => '')   // una volta per caricamento: nessun menu rimasto aperto da prima
     const l = await rilevaLingua($)
@@ -194,6 +211,7 @@ export const register: Register = on => {
     void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
     void aggiorna($)
     $.clock.every(60000, () => { void aggiorna($) })
+    controllaPannello($)
     return avviata
   })
 
@@ -251,6 +269,21 @@ export const register: Register = on => {
     await update($, info, (v: string) => (v === id ? '' : id))
     return {}
   })
+  // pannello chiuso: un piccolo pulsante sopra la casella dei messaggi per riaprirlo
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if ((e.props as any)?.hasSurvey || !(await read($, chiuso))) return next(e)
+    const { Box, Button } = $.ui.resolve(e) as any
+    return (
+      <Box flexDirection="row" justifyContent="flex-end">
+        <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
+          void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
+          void update($, chiuso, () => false)
+          void aggiorna($)
+        }} />
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
     const { Box, Text, Button, Select, Svg, Client } = $.ui.resolve(e) as any
     const d = await read($, dati), L = await read($, limiti), mem = await read($, memoria)

@@ -21,7 +21,7 @@ Created by **y05mueller-jpg** (y05.mueller@gmail.com), first published on 23 Oct
 /plugin install utilizzo --marketplace y05mueller-jpg/claude-code-pannello-utilizzo
 ```
 
-Then open it with `/utilizzo`. Requires Node.js on the PATH.
+Then open it with `/utilizzo`. If you close the panel, a small **▤ Usage** button appears above the message box to reopen it. Requires Node.js on the PATH.
 
 ## Credit request
 

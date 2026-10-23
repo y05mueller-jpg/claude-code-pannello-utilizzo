@@ -13,6 +13,6 @@ export type Scelta = { anno: number; mese: number; giorno: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean }
   }
 }
