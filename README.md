@@ -6,7 +6,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **Context memory** of the current chat, with a "Compress now" button and **automatic compaction at 40%**
 - **What the chat contains** (system prompt, tools, messages, free space)
 - **Sessions**: working, idle or blocked by a limit
-- **Totals**: messages sent, requests, tokens (total, cache reads, output, new input), per message and per request; click a box for its explanation
+- **Totals**: messages sent, requests, tokens (total, cache reads, written by Claude, written by you, new input), per message; click a box for its explanation
 - **Readable token unit**: choose what 1 Token equals — one A4 page, one book, one hour of writing, or one real token
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
 

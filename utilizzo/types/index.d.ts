@@ -1,8 +1,8 @@
 export type Sessione = { id: string; titolo: string; progetto: string; messaggi: number; richieste: number; token: number; ultimo: number; stato: string; mesi?: Record<string, [number, number, number]>; giorni?: Record<string, [number, number, number]> }
-export type Giorno = { token: number; messaggi: number; richieste?: number; input?: number; output?: number; cacheScritta?: number; cacheLetta?: number }
+export type Giorno = { token: number; messaggi: number; richieste?: number; input?: number; output?: number; cacheScritta?: number; cacheLetta?: number; scritti?: number }
 export type Dati = {
   aggiornato: number
-  totali: { messaggi: number; richieste: number; token: number; input: number; output: number; cacheScritta: number; cacheLetta: number; sessioni: number }
+  totali: { messaggi: number; richieste: number; token: number; input: number; output: number; cacheScritta: number; cacheLetta: number; scritti?: number; sessioni: number }
   sessioni: Sessione[]
   giorni: Record<string, Giorno>
 }

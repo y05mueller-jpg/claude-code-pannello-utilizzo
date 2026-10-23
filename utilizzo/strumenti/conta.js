@@ -6,7 +6,7 @@
 const fs = require('fs'), path = require('path'), os = require('os');
 const RADICE = path.join(os.homedir(), '.claude', 'projects');
 const CACHE = path.join(os.homedir(), '.claude', 'utilizzo-cache.json');
-const VERSIONE = 4;   // 4: per ogni giorno anche richieste e tipi di token
+const VERSIONE = 5;   // 5: anche i token scritti dalla persona (stima dalla lunghezza dei suoi messaggi)
 
 let cache = { v: VERSIONE, file: {}, sessioni: {} };
 try { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.v === VERSIONE) cache = c; } catch (e) {}
@@ -22,7 +22,7 @@ function fileJsonl(dir, out = []) {
 }
 const giorno = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function sessione(id) {
-  return cache.sessioni[id] || (cache.sessioni[id] = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, titolo: '', progetto: '', primo: 0, ultimo: 0, giorni: {}, bloccata: false });
+  return cache.sessioni[id] || (cache.sessioni[id] = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, titolo: '', progetto: '', primo: 0, ultimo: 0, giorni: {}, bloccata: false });
 }
 // un messaggio scritto dalla persona (non i risultati degli strumenti, non gli avvisi del sistema)
 function testoUtente(m) {
@@ -85,8 +85,10 @@ for (const file of fileJsonl(RADICE)) {
       const t = testoUtente(j.message);
       if (t == null || /^\s*</.test(t)) continue;   // avvisi e comandi interni, non messaggi della persona
       s.messaggi++;
+      const stima = Math.ceil(t.length / 4);   // ~4 caratteri per token: si conta solo la lunghezza, il testo non si salva
+      s.scritti = (s.scritti || 0) + stima;
       if (!s.titolo && !s.primoTesto) s.primoTesto = t.replace(/\s+/g, ' ').slice(0, 60);
-      if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0]); g[1]++; }
+      if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0, 0]); g[1]++; g[7] = (g[7] || 0) + stima; }
     }
   }
   f.inizio = nuovoInizio;
@@ -99,15 +101,15 @@ const ultimoFile = {};
 for (const [p, f] of Object.entries(cache.file)) { const id = path.basename(p, '.jsonl'); ultimoFile[id] = Math.max(ultimoFile[id] || 0, f.mtime); }
 // per ogni mese "2026-10": [token, messaggi, richieste] della chat
 function perMese(g) { const m = {}; for (const [k, v] of Object.entries(g)) { const x = m[k.slice(0, 7)] || (m[k.slice(0, 7)] = [0, 0, 0]); x[0] += v[0] || 0; x[1] += v[1] || 0; x[2] += v[2] || 0; } return m; }
-const totali = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, sessioni: 0 };
+const totali = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, sessioni: 0 };
 const giorni = {}, sessioni = [];
 for (const [id, s] of Object.entries(cache.sessioni)) {
   if (!s.richieste && !s.messaggi) continue;
-  for (const k of ['messaggi', 'richieste', 'token', 'input', 'output', 'cacheScritta', 'cacheLetta']) totali[k] += s[k];
+  for (const k of ['messaggi', 'richieste', 'token', 'input', 'output', 'cacheScritta', 'cacheLetta', 'scritti']) totali[k] += s[k] || 0;
   totali.sessioni++;
   for (const [g, v] of Object.entries(s.giorni)) {
-    const x = giorni[g] || (giorni[g] = { token: 0, messaggi: 0, richieste: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0 });
-    x.token += v[0] || 0; x.messaggi += v[1] || 0; x.richieste += v[2] || 0; x.input += v[3] || 0; x.output += v[4] || 0; x.cacheScritta += v[5] || 0; x.cacheLetta += v[6] || 0;
+    const x = giorni[g] || (giorni[g] = { token: 0, messaggi: 0, richieste: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0 });
+    x.token += v[0] || 0; x.messaggi += v[1] || 0; x.richieste += v[2] || 0; x.input += v[3] || 0; x.output += v[4] || 0; x.cacheScritta += v[5] || 0; x.cacheLetta += v[6] || 0; x.scritti += v[7] || 0;
   }
   const attivita = Math.max(s.ultimo, ultimoFile[id] || 0);
   const stato = ora - attivita < 120000 ? 'al lavoro' : s.bloccata ? 'bloccata' : 'ferma';

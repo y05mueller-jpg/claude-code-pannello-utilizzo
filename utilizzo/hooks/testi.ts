@@ -33,7 +33,7 @@ export type Testi = {
   messaggiInviati: string; quelliCheScrivi: string; richieste: string; passiClaude: string
   tokenTotale: string; tuttoPassato: string; tokenRiletti: string; rilettiCache: string
   perMessaggio: string; perRichiesta: string; tokenMedia: string
-  scrittiClaude: string; tokenRisposta: string; nuoviEntrata: string; tokenPrimaVolta: string
+  scrittiClaude: string; tokenRisposta: string; scrittiDaTe: string; tokenTuoi: string; nuoviEntrata: string; tokenPrimaVolta: string
   ultime5: string; settimanale: string; spesa: string; siAzzera: (q: string) => string; limitiDopo: string
   aggiornato: (f: string) => string; stoContando: string
   sezLimiti: string; sezMemoria: string; autoAl: (n: number) => string
@@ -76,7 +76,7 @@ const it: Testi = {
   messaggiInviati: 'Messaggi inviati', quelliCheScrivi: 'quelli che scrivi tu', richieste: 'Richieste', passiClaude: 'i passi di lavoro di Claude',
   tokenTotale: 'Token in totale', tuttoPassato: 'tutto ciò che è passato', tokenRiletti: 'Token riletti', rilettiCache: 'riletti dalla cache: costano molto meno',
   perMessaggio: 'Per messaggio', perRichiesta: 'Per richiesta', tokenMedia: 'Token in media',
-  scrittiClaude: 'Scritti da Claude', tokenRisposta: 'Token di risposta', nuoviEntrata: 'Nuovi in entrata', tokenPrimaVolta: 'Token letti la prima volta',
+  scrittiDaTe: 'Scritti da te', tokenTuoi: 'Token dei messaggi che hai scritto (stima)', scrittiClaude: 'Scritti da Claude', tokenRisposta: 'Token di risposta', nuoviEntrata: 'Nuovi in entrata', tokenPrimaVolta: 'Token letti la prima volta',
   ultime5: 'Ultime 5 ore', settimanale: 'Settimanale', spesa: 'Spesa', siAzzera: q => `si azzera ${q}`, limitiDopo: 'I limiti compaiono dopo la prossima risposta di Claude.',
   aggiornato: f => `Aggiornato ${f}`, stoContando: 'Sto contando…',
   sezLimiti: 'Limiti', sezMemoria: 'Memoria di questa chat', autoAl: n => `auto al ${n}%`,
@@ -122,7 +122,7 @@ const en: Testi = {
   messaggiInviati: 'Messages sent', quelliCheScrivi: 'the ones you write', richieste: 'Requests', passiClaude: "Claude's work steps",
   tokenTotale: 'Tokens in total', tuttoPassato: 'everything that went through', tokenRiletti: 'Tokens re-read', rilettiCache: 're-read from cache: much cheaper',
   perMessaggio: 'Per message', perRichiesta: 'Per request', tokenMedia: 'Tokens on average',
-  scrittiClaude: 'Written by Claude', tokenRisposta: 'Reply tokens', nuoviEntrata: 'New input', tokenPrimaVolta: 'Tokens read for the first time',
+  scrittiDaTe: 'Written by you', tokenTuoi: 'Tokens of the messages you wrote (estimate)', scrittiClaude: 'Written by Claude', tokenRisposta: 'Reply tokens', nuoviEntrata: 'New input', tokenPrimaVolta: 'Tokens read for the first time',
   ultime5: 'Last 5 hours', settimanale: 'Weekly', spesa: 'Spend', siAzzera: q => `resets ${q}`, limitiDopo: "Limits appear after Claude's next reply.",
   aggiornato: f => `Updated ${f}`, stoContando: 'Counting…',
   sezLimiti: 'Limits', sezMemoria: 'Memory of this chat', autoAl: n => `auto at ${n}%`,
@@ -168,7 +168,7 @@ const de: Testi = {
   messaggiInviati: 'Gesendete Nachrichten', quelliCheScrivi: 'die du schreibst', richieste: 'Anfragen', passiClaude: 'die Arbeitsschritte von Claude',
   tokenTotale: 'Token insgesamt', tuttoPassato: 'alles, was durchgelaufen ist', tokenRiletti: 'Erneut gelesene Token', rilettiCache: 'aus dem Cache erneut gelesen: viel günstiger',
   perMessaggio: 'Pro Nachricht', perRichiesta: 'Pro Anfrage', tokenMedia: 'Token im Durchschnitt',
-  scrittiClaude: 'Von Claude geschrieben', tokenRisposta: 'Antwort-Token', nuoviEntrata: 'Neu eingehend', tokenPrimaVolta: 'Zum ersten Mal gelesene Token',
+  scrittiDaTe: 'Von dir geschrieben', tokenTuoi: 'Token deiner geschriebenen Nachrichten (Schätzung)', scrittiClaude: 'Von Claude geschrieben', tokenRisposta: 'Antwort-Token', nuoviEntrata: 'Neu eingehend', tokenPrimaVolta: 'Zum ersten Mal gelesene Token',
   ultime5: 'Letzte 5 Stunden', settimanale: 'Wöchentlich', spesa: 'Ausgaben', siAzzera: q => `wird zurückgesetzt ${q}`, limitiDopo: 'Die Limits erscheinen nach der nächsten Antwort von Claude.',
   aggiornato: f => `Aktualisiert ${f}`, stoContando: 'Zähle…',
   sezLimiti: 'Limits', sezMemoria: 'Speicher dieses Chats', autoAl: n => `auto bei ${n}%`,
@@ -214,7 +214,7 @@ const fr: Testi = {
   messaggiInviati: 'Messages envoyés', quelliCheScrivi: 'ceux que tu écris', richieste: 'Requêtes', passiClaude: 'les étapes de travail de Claude',
   tokenTotale: 'Tokens au total', tuttoPassato: 'tout ce qui est passé', tokenRiletti: 'Tokens relus', rilettiCache: 'relus depuis le cache : bien moins chers',
   perMessaggio: 'Par message', perRichiesta: 'Par requête', tokenMedia: 'Tokens en moyenne',
-  scrittiClaude: 'Écrits par Claude', tokenRisposta: 'Tokens de réponse', nuoviEntrata: 'Nouveaux en entrée', tokenPrimaVolta: 'Tokens lus pour la première fois',
+  scrittiDaTe: 'Écrits par toi', tokenTuoi: 'Tokens des messages que tu as écrits (estimation)', scrittiClaude: 'Écrits par Claude', tokenRisposta: 'Tokens de réponse', nuoviEntrata: 'Nouveaux en entrée', tokenPrimaVolta: 'Tokens lus pour la première fois',
   ultime5: 'Dernières 5 heures', settimanale: 'Hebdomadaire', spesa: 'Dépenses', siAzzera: q => `remise à zéro ${q}`, limitiDopo: 'Les limites apparaissent après la prochaine réponse de Claude.',
   aggiornato: f => `Mis à jour ${f}`, stoContando: 'Comptage…',
   sezLimiti: 'Limites', sezMemoria: 'Mémoire de ce chat', autoAl: n => `auto à ${n} %`,
@@ -260,7 +260,7 @@ const es: Testi = {
   messaggiInviati: 'Mensajes enviados', quelliCheScrivi: 'los que escribes tú', richieste: 'Solicitudes', passiClaude: 'los pasos de trabajo de Claude',
   tokenTotale: 'Tokens en total', tuttoPassato: 'todo lo que ha pasado', tokenRiletti: 'Tokens releídos', rilettiCache: 'releídos de la caché: cuestan mucho menos',
   perMessaggio: 'Por mensaje', perRichiesta: 'Por solicitud', tokenMedia: 'Tokens de media',
-  scrittiClaude: 'Escritos por Claude', tokenRisposta: 'Tokens de respuesta', nuoviEntrata: 'Nuevos de entrada', tokenPrimaVolta: 'Tokens leídos por primera vez',
+  scrittiDaTe: 'Escritos por ti', tokenTuoi: 'Tokens de los mensajes que escribiste (estimación)', scrittiClaude: 'Escritos por Claude', tokenRisposta: 'Tokens de respuesta', nuoviEntrata: 'Nuevos de entrada', tokenPrimaVolta: 'Tokens leídos por primera vez',
   ultime5: 'Últimas 5 horas', settimanale: 'Semanal', spesa: 'Gasto', siAzzera: q => `se reinicia ${q}`, limitiDopo: 'Los límites aparecen tras la próxima respuesta de Claude.',
   aggiornato: f => `Actualizado ${f}`, stoContando: 'Contando…',
   sezLimiti: 'Límites', sezMemoria: 'Memoria de este chat', autoAl: n => `auto al ${n}%`,
