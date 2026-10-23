@@ -5,6 +5,25 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Dati, Limite, Memoria, Scelta } from '../types'
+import { TESTI, codiceLingua, linguaNota, type Lingua } from './testi'
+
+// lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
+let T = TESTI.en
+async function rilevaLingua($: any): Promise<Lingua> {
+  try {
+    const righe: any[] = await $.config.list()
+    const r = righe.find(x => /^(language|preferredLanguage)$/i.test(String(x.key)))
+    const v = r && r.value ? String(r.value) : ''
+    const l = v && !/default|predefin|auto/i.test(v) ? linguaNota(v) : null
+    if (l) return l
+  } catch (e) { /* si prova con la lingua del computer */ }
+  try { const l = linguaNota(Intl.DateTimeFormat().resolvedOptions().locale); if (l && l !== 'en') return l } catch (e) { /* niente Intl qui */ }
+  try {
+    const r = await $.process.run(['node', '-e', 'process.stdout.write(Intl.DateTimeFormat().resolvedOptions().locale)'], { timeoutMs: 10000 })
+    if (r.exitCode === 0 && r.stdout) return codiceLingua(r.stdout)
+  } catch (e) { /* inglese */ }
+  return 'en'
+}
 
 const PANNELLO = 'utilizzo'
 // compressione automatica: alla fine di una risposta, se la memoria della chat supera questa soglia
@@ -13,7 +32,6 @@ let senzaClic = false
 // il contatore (strumenti/conta.js) viaggia dentro il modulo e gira con `node -e`: così funziona in qualsiasi cartella
 const CONTA_JS = "// Conta messaggi e token di tutte le conversazioni di Claude Code salvate su questo PC (~/.claude/projects).\n// Legge solo i numeri: messaggi dell'utente, token di ogni risposta, data e titolo della chat. Nessun testo esce da qui.\n// Legge ogni file una volta sola e poi solo le righe nuove (cache in ~/.claude/utilizzo-cache.json).\n// Uscita (stdout): JSON { aggiornato, totali, sessioni: [...], giorni: { \"2026-10-23\": { token, messaggi } } }\n'use strict';\nconst fs = require('fs'), path = require('path'), os = require('os');\nconst RADICE = path.join(os.homedir(), '.claude', 'projects');\nconst CACHE = path.join(os.homedir(), '.claude', 'utilizzo-cache.json');\nconst VERSIONE = 4;   // 4: per ogni giorno anche richieste e tipi di token\n\nlet cache = { v: VERSIONE, file: {}, sessioni: {} };\ntry { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.v === VERSIONE) cache = c; } catch (e) {}\n\nfunction fileJsonl(dir, out = []) {\n  let voci; try { voci = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }\n  for (const v of voci) {\n    const p = path.join(dir, v.name);\n    if (v.isDirectory()) fileJsonl(p, out);\n    else if (v.name.endsWith('.jsonl')) out.push(p);\n  }\n  return out;\n}\nconst giorno = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };\nfunction sessione(id) {\n  return cache.sessioni[id] || (cache.sessioni[id] = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, titolo: '', progetto: '', primo: 0, ultimo: 0, giorni: {}, bloccata: false });\n}\n// un messaggio scritto dalla persona (non i risultati degli strumenti, non gli avvisi del sistema)\nfunction testoUtente(m) {\n  if (!m || m.role !== 'user') return null;\n  if (typeof m.content === 'string') return m.content;\n  if (!Array.isArray(m.content) || m.content.some(b => b && b.type === 'tool_result')) return null;\n  const t = m.content.find(b => b && b.type === 'text');\n  return t ? t.text : null;\n}\n\nfunction leggiRighe(file, da) {\n  const fd = fs.openSync(file, 'r'), dim = fs.fstatSync(fd).size, pezzi = [];\n  let pos = da;\n  const buf = Buffer.alloc(4 * 1024 * 1024);\n  while (pos < dim) { const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos); if (!n) break; pezzi.push(Buffer.from(buf.subarray(0, n))); pos += n; }\n  fs.closeSync(fd);\n  const tutto = Buffer.concat(pezzi), fine = tutto.lastIndexOf(10);   // solo righe complete\n  if (fine < 0) return { righe: [], nuovoInizio: da };\n  return { righe: tutto.subarray(0, fine).toString('utf8').split('\\n'), nuovoInizio: da + fine + 1 };\n}\n\nconst ora = Date.now(), visti = new Set();\nfor (const file of fileJsonl(RADICE)) {\n  visti.add(file);\n  let st; try { st = fs.statSync(file); } catch (e) { continue; }\n  const f = cache.file[file] || (cache.file[file] = { inizio: 0, richieste: [], mtime: 0 });\n  f.mtime = st.mtimeMs;\n  if (st.size < f.inizio) { f.inizio = 0; f.richieste = []; }   // file riscritto: si ricomincia\n  if (st.size === f.inizio) continue;\n  const secondario = file.includes(`${path.sep}subagents${path.sep}`);\n  const giaContate = new Set(f.richieste);\n  const { righe, nuovoInizio } = leggiRighe(file, f.inizio);\n  for (const r of righe) {\n    if (!r) continue;\n    let j; try { j = JSON.parse(r); } catch (e) { continue; }\n    if (!j.sessionId) continue;\n    const s = sessione(j.sessionId);\n    if (!s.progetto) s.progetto = path.basename(secondario ? path.dirname(path.dirname(path.dirname(file))) : path.dirname(file));\n    if (j.type === 'custom-title' && j.customTitle) { s.titolo = j.customTitle; continue; }\n    const ts = j.timestamp ? Date.parse(j.timestamp) : NaN;\n    if (!isNaN(ts)) { if (!s.primo || ts < s.primo) s.primo = ts; if (ts > s.ultimo) s.ultimo = ts; }\n    if (j.type === 'assistant' && j.message && j.message.usage) {\n      const id = j.requestId || j.message.id;\n      if (id && giaContate.has(id)) continue;   // la stessa risposta \u00e8 scritta su pi\u00f9 righe\n      if (id) { giaContate.add(id); f.richieste.push(id); }\n      const u = j.message.usage, tot = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);\n      s.richieste++; s.token += tot; s.input += u.input_tokens || 0; s.output += u.output_tokens || 0;\n      s.cacheScritta += u.cache_creation_input_tokens || 0; s.cacheLetta += u.cache_read_input_tokens || 0;\n      if (!isNaN(ts)) {\n        const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0]);\n        g[0] += tot; g[2] = (g[2] || 0) + 1; g[3] = (g[3] || 0) + (u.input_tokens || 0); g[4] = (g[4] || 0) + (u.output_tokens || 0);\n        g[5] = (g[5] || 0) + (u.cache_creation_input_tokens || 0); g[6] = (g[6] || 0) + (u.cache_read_input_tokens || 0);\n      }\n      s.bloccata = false;\n      if (f.richieste.length > 50000) f.richieste = f.richieste.slice(-20000);\n    } else if (j.type === 'assistant' && j.isApiErrorMessage) {\n      const t = JSON.stringify(j.message || '').toLowerCase();\n      s.bloccata = /limit|limite|quota|rate/.test(t);\n    } else if (!secondario && j.type === 'user' && !j.isMeta && !j.isCompactSummary) {\n      const t = testoUtente(j.message);\n      if (t == null || /^\\s*</.test(t)) continue;   // avvisi e comandi interni, non messaggi della persona\n      s.messaggi++;\n      if (!s.titolo && !s.primoTesto) s.primoTesto = t.replace(/\\s+/g, ' ').slice(0, 60);\n      if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0]); g[1]++; }\n    }\n  }\n  f.inizio = nuovoInizio;\n}\nfor (const k of Object.keys(cache.file)) if (!visti.has(k)) delete cache.file[k];\ntry { fs.writeFileSync(CACHE, JSON.stringify(cache)); } catch (e) {}\n\n// ---- riepilogo ----\nconst ultimoFile = {};\nfor (const [p, f] of Object.entries(cache.file)) { const id = path.basename(p, '.jsonl'); ultimoFile[id] = Math.max(ultimoFile[id] || 0, f.mtime); }\n// per ogni mese \"2026-10\": [token, messaggi, richieste] della chat\nfunction perMese(g) { const m = {}; for (const [k, v] of Object.entries(g)) { const x = m[k.slice(0, 7)] || (m[k.slice(0, 7)] = [0, 0, 0]); x[0] += v[0] || 0; x[1] += v[1] || 0; x[2] += v[2] || 0; } return m; }\nconst totali = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, sessioni: 0 };\nconst giorni = {}, sessioni = [];\nfor (const [id, s] of Object.entries(cache.sessioni)) {\n  if (!s.richieste && !s.messaggi) continue;\n  for (const k of ['messaggi', 'richieste', 'token', 'input', 'output', 'cacheScritta', 'cacheLetta']) totali[k] += s[k];\n  totali.sessioni++;\n  for (const [g, v] of Object.entries(s.giorni)) {\n    const x = giorni[g] || (giorni[g] = { token: 0, messaggi: 0, richieste: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0 });\n    x.token += v[0] || 0; x.messaggi += v[1] || 0; x.richieste += v[2] || 0; x.input += v[3] || 0; x.output += v[4] || 0; x.cacheScritta += v[5] || 0; x.cacheLetta += v[6] || 0;\n  }\n  const attivita = Math.max(s.ultimo, ultimoFile[id] || 0);\n  const stato = ora - attivita < 120000 ? 'al lavoro' : s.bloccata ? 'bloccata' : 'ferma';\n  sessioni.push({ id, titolo: s.titolo || s.primoTesto || 'Senza titolo', progetto: s.progetto.replace(/^C--Users-[^-]+-(Documents-)?/, '').replace(/-/g, ' '),\n    messaggi: s.messaggi, richieste: s.richieste, token: s.token, ultimo: attivita, stato, mesi: perMese(s.giorni), giorni: Object.fromEntries(Object.entries(s.giorni).map(([k, v]) => [k, [v[0] || 0, v[1] || 0, v[2] || 0]])) });\n}\nsessioni.sort((a, b) => b.ultimo - a.ultimo);\nprocess.stdout.write(JSON.stringify({ aggiornato: ora, totali, sessioni, giorni }));\n"
 const BLU = '#3b82f6', BLU_SCURO = '#1d4ed8', GRIGIO = '#94a3b8'
-const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 const dati = atom({ plugin: 'utilizzo', key: 'dati' } as const, null)
 const limiti = atom({ plugin: 'utilizzo', key: 'limiti' } as const, [])
@@ -34,25 +52,22 @@ const misura = atom({ plugin: 'utilizzo', key: 'misura' } as const, 'a4')
 // misure per rendere i token comprensibili. Un token è circa 3/4 di parola:
 // una pagina A4 di testo (~500 parole) ≈ 650 token; un libro di 300 pagine ≈ 200'000 token;
 // una persona scrive circa 40 parole al minuto, cioè ~3'200 token l'ora.
-const MISURE: Record<string, { nome: string; uno: string; tanti: string; token: number; spiega: string }> = {
-  a4: { nome: '1 pagina A4', uno: '', tanti: '', token: 650, spiega: '1 Token = 1 pagina A4 di testo (≈ 650 token reali)' },
-  libri: { nome: '1 libro', uno: '', tanti: '', token: 200000, spiega: '1 Token = 1 libro di 300 pagine (≈ 200 mila token reali)' },
-  ore: { nome: "1 ora di scrittura", uno: '', tanti: '', token: 3200, spiega: "1 Token = 1 ora di una persona che scrive (≈ 3'200 token reali)" },
-  token: { nome: '1 token reale', uno: '', tanti: '', token: 1, spiega: 'Token reali: i pezzetti di testo che Claude legge e scrive' },
-}
+const MISURE: Record<string, number> = { a4: 650, libri: 200000, ore: 3200, token: 1 }
+const nomeMisura = (k: string) => (T.misure as any)[k] ?? T.misure.a4
 
 // ---- numeri leggibili ----
-const intero = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'")
+const intero = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, T.migliaia)
+const dec = (n: number, cifre: number) => n.toFixed(cifre).replace('.', T.decimale)
 function breve(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(n >= 1e10 ? 0 : 1).replace('.', ',') + ' mld'
-  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',') + ' mln'
-  if (n >= 1e4) return Math.round(n / 1e3) + ' mila'
+  if (n >= 1e9) return dec(n / 1e9, n >= 1e10 ? 0 : 1) + ' ' + T.mld
+  if (n >= 1e6) return dec(n / 1e6, n >= 1e7 ? 0 : 1) + ' ' + T.mln
+  if (n >= 1e4) return Math.round(n / 1e3) + ' ' + T.mila
   return intero(n)
 }
 // un numero di token reali riportato alla misura scelta (1 Token = 1 pagina A4, 1 libro…), es. "17 mila"
 function inMisura(n: number, m: string): string {
-  const v = n / (MISURE[m] ?? MISURE.a4).token
-  return v >= 1e4 ? breve(v) : v >= 10 ? intero(v) : v.toFixed(1).replace('.', ',').replace(',0', '')
+  const v = n / (MISURE[m] ?? MISURE.a4)
+  return v >= 1e4 ? breve(v) : v >= 10 ? intero(v) : dec(v, 1).replace(T.decimale + '0', '')
 }
 const due = (n: number) => String(n).padStart(2, '0')
 const chiave = (a: number, m: number, g: number) => `${a}-${due(m + 1)}-${due(g)}`
@@ -61,29 +76,23 @@ function quando(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso), oggi = new Date()
   const ora = `${due(d.getHours())}:${due(d.getMinutes())}`
-  if (d.toDateString() === oggi.toDateString()) return `oggi alle ${ora}`
+  if (d.toDateString() === oggi.toDateString()) return T.oggi(ora)
   const domani = new Date(oggi.getTime() + 86400000)
-  if (d.toDateString() === domani.toDateString()) return `domani alle ${ora}`
-  return `${['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'][d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()].slice(0, 3)} alle ${ora}`
+  if (d.toDateString() === domani.toDateString()) return T.domani(ora)
+  return T.giornoAlle(`${T.giorniBrevi[d.getDay()]} ${d.getDate()} ${T.mesi[d.getMonth()].slice(0, 3)}`, ora)
 }
 function fa(ms: number, ora: number): string {
   const s = Math.max(0, Math.round((ora - ms) / 1000))
-  if (s < 90) return 'adesso'
-  if (s < 3600) return `${Math.round(s / 60)} min fa`
-  if (s < 86400) return `${Math.round(s / 3600)} h fa`
-  return `${Math.round(s / 86400)} g fa`
+  if (s < 90) return T.adesso
+  if (s < 3600) return T.minFa(Math.round(s / 60))
+  if (s < 86400) return T.hFa(Math.round(s / 3600))
+  return T.gFa(Math.round(s / 86400))
 }
 
 // ---- disegni (SVG) ----
 function barra(percento: number, colore: string): string {
   const p = Math.max(0, Math.min(100, percento))
   return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="10" viewBox="0 0 260 10"><rect width="260" height="10" rx="5" fill="#94a3b8" fill-opacity="0.25"/><rect width="${(260 * p) / 100}" height="10" rx="5" fill="${colore}"/></svg>`
-}
-// nomi italiani delle parti della memoria (come le elenca /context)
-const NOMI_MEMORIA: Record<string, string> = {
-  'Messages': 'Messaggi della chat', 'System prompt': 'Istruzioni di base', 'System tools': 'Strumenti di Claude', 'MCP tools': 'Strumenti collegati (MCP)',
-  'Custom agents': 'Agenti', 'Memory files': 'File di memoria (CLAUDE.md)', 'Skills': 'Competenze (skill)', 'Free space': 'Spazio libero',
-  'Autocompact buffer': 'Riserva per il riassunto automatico', 'Slash commands': 'Comandi', 'MCP server instructions': 'Istruzioni degli strumenti collegati',
 }
 const coloriCss: Record<string, string> = { promptBorder: '#94a3b8', inactive: '#64748b', permission: '#8b5cf6', claude: '#d97757', warning: '#f59e0b', success: '#22c55e', error: '#ef4444', suggestion: '#3b82f6', remember: '#06b6d4', autoAccept: '#a855f7', planMode: '#14b8a6', ide: '#eab308', bashBorder: '#ec4899', cyan_FOR_SUBAGENTS_ONLY: '#06b6d4' }
 const colore = (c: string) => (c.startsWith('#') ? c : coloriCss[c] ?? BLU)
@@ -101,7 +110,7 @@ function grafico(d: Dati, s: Scelta): string {
   let barre = ''
   valori.forEach((v, i) => {
     const h = v ? Math.max(2, ((base - 4) * v) / massimo) : 0, x = 2 + i * (larg + spazio), sel = i + 1 === s.giorno
-    const titolo = `${i + 1} ${MESI[s.mese]}: ${breve(v)} token, ${d.giorni[chiave(s.anno, s.mese, i + 1)]?.messaggi ?? 0} messaggi`
+    const titolo = T.barra(i + 1, T.mesi[s.mese], breve(v), d.giorni[chiave(s.anno, s.mese, i + 1)]?.messaggi ?? 0)
     barre += `<g><title>${titolo}</title><rect x="${x}" y="0" width="${larg}" height="${base}" fill="transparent"/>`
     barre += `<rect x="${x}" y="${base - h}" width="${larg}" height="${h}" rx="2" fill="${sel ? BLU_SCURO : BLU}"${sel ? ' stroke="#93c5fd" stroke-width="1.5"' : ''}/></g>`
     if ((i + 1) % 5 === 0 || i === 0) barre += `<text x="${x + larg / 2}" y="${alto - 3}" font-size="9" text-anchor="middle" fill="${GRIGIO}" font-family="system-ui">${i + 1}</text>`
@@ -110,7 +119,6 @@ function grafico(d: Dati, s: Scelta): string {
 }
 
 // ---- compressione: nell'app desktop un pannello non può comprimere direttamente, quindi manda /compact come un messaggio ----
-const ISTRUZIONI = 'Tieni le decisioni prese, i lavori in corso e le cose ancora da fare.'
 // un errore resta visibile 6 secondi, poi la scritta sparisce
 async function mostraErrore($: any, testo: string) {
   await update($, comprimi, () => testo)
@@ -118,18 +126,24 @@ async function mostraErrore($: any, testo: string) {
 }
 async function comprimiChat($: any): Promise<string> {
   try {
-    const r: any = await $.session.compact({ instructions: ISTRUZIONI })
+    const r: any = await $.session.compact({ instructions: T.istruzioni })
     return r && r.skip ? 'Compressione annullata' : 'Chat compressa'
   } catch (x) {
     // /compact lanciato come comando, come se la persona lo scrivesse: parte appena Claude non sta lavorando
-    await $.command.run({ command: 'compact', args: ISTRUZIONI })
+    await $.command.run({ command: 'compact', args: T.istruzioni })
     return 'Compressione avviata (/compact)'
   }
 }
 
 // ---- raccolta dei numeri ----
 let inCorso = false
+let linguaDa = ''
 async function aggiorna($: any) {
+  if (!linguaDa) {
+    const l = await rilevaLingua($)
+    linguaDa = l
+    if (TESTI[l] !== T) { T = TESTI[l]; $.ui.invalidate('ui.render') }
+  }
   try {
     // "summary": la composizione della memoria stimata sul PC, senza chiamate in più
     const u = await $.session.usage({ breakdown: 'summary' })
@@ -148,7 +162,7 @@ async function aggiorna($: any) {
       await update($, dati, () => nuovi)
       await update($, errore, () => '')
       await update($, scelta, (s: Scelta | null) => s ?? (() => { const o = new Date(nuovi.aggiornato); return { anno: o.getFullYear(), mese: o.getMonth(), giorno: o.getDate() } })())
-    } else await update($, errore, () => (r.stderr || 'conteggio non riuscito').slice(0, 200))
+    } else await update($, errore, () => (r.stderr || '?').slice(0, 200))
   } catch (e) {
     await update($, errore, () => String((e as Error)?.message ?? e).slice(0, 200))
   } finally { inCorso = false }
@@ -157,18 +171,19 @@ async function aggiorna($: any) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const avviata = await next(e)
+    linguaDa = ''
     await update($, comprimi, () => '')   // via le scritte rimaste dalle volte prima
-    await $.command.register({ name: 'utilizzo', description: 'Apre il pannello Utilizzo (limiti, sessioni, messaggi e token)' })
-    void $.ui.open({ id: PANNELLO, title: 'Utilizzo' })
+    await $.command.register({ name: 'utilizzo', description: T.comando })
+    void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
     void aggiorna($)
     $.clock.every(60000, () => { void aggiorna($) })
     return avviata
   })
 
   on('command.run', { command: 'utilizzo' }, async $ => {
-    await $.ui.open({ id: PANNELLO, title: 'Utilizzo' })
+    await $.ui.open({ id: PANNELLO, title: T.titoloPannello })
     void aggiorna($)
-    return { text: 'Pannello Utilizzo aperto.' }
+    return { text: T.pannelloAperto }
   })
 
   // dopo ogni risposta i limiti e la memoria cambiano: si rileggono subito
@@ -190,7 +205,7 @@ export const register: Register = on => {
             try {
               await comprimiChat($)
               await update($, comprimi, () => '')
-            } catch (x) { await mostraErrore($, `Compressione automatica non riuscita: ${String((x as Error)?.message ?? x).slice(0, 160)}`) }
+            } catch (x) { await mostraErrore($, T.autoFallita(String((x as Error)?.message ?? x).slice(0, 160))) }
             void aggiorna($)
           })()
         })
@@ -201,6 +216,8 @@ export const register: Register = on => {
 
   // clic su un riquadro del Totale (da titolo-clic.tsx): apre la sua spiegazione, o la chiude se era già aperta
   on('ui.message', async ($, e, next) => {
+    const scelta = (e.data as any)?.misura
+    if (typeof scelta === 'string') { await update($, misura, () => scelta); await update($, menu, () => ''); return {} }
     const id = (e.data as any)?.info
     if (typeof id !== 'string') return next(e)
     await update($, info, (v: string) => (v === id ? '' : id))
@@ -220,23 +237,23 @@ export const register: Register = on => {
     // così ogni riga è disegnata DOPO quella sotto, e la finestrella che compare sotto un riquadro resta visibile sopra di essa
     const riquadri = (c: Cifre, gruppo: string) => {
       const voci: [string, string, string][] = [
-        ['Messaggi inviati', intero(c.messaggi), 'quelli che scrivi tu'],
-        ['Richieste', intero(c.richieste), 'i passi di lavoro di Claude'],
-        ['Token in totale', mis(c.token), 'tutto ciò che è passato'],
-        ['Token riletti', mis(c.cacheLetta), 'riletti dalla cache: costano molto meno'],
-        ['Per messaggio', mis(c.messaggi ? c.token / c.messaggi : 0), 'Token in media'],
-        ['Per richiesta', mis(c.richieste ? c.token / c.richieste : 0), 'Token in media'],
-        ['Scritti da Claude', mis(c.output), 'Token di risposta'],
-        ['Nuovi in entrata', mis(c.input + c.cacheScritta), 'Token letti la prima volta'],
+        [T.messaggiInviati, intero(c.messaggi), T.quelliCheScrivi],
+        [T.richieste, intero(c.richieste), T.passiClaude],
+        [T.tokenTotale, mis(c.token), T.tuttoPassato],
+        [T.tokenRiletti, mis(c.cacheLetta), T.rilettiCache],
+        [T.perMessaggio, mis(c.messaggi ? c.token / c.messaggi : 0), T.tokenMedia],
+        [T.perRichiesta, mis(c.richieste ? c.token / c.richieste : 0), T.tokenMedia],
+        [T.scrittiClaude, mis(c.output), T.tokenRisposta],
+        [T.nuoviEntrata, mis(c.input + c.cacheScritta), T.tokenPrimaVolta],
       ]
-      const riquadro = ([nome, valore, nota]: [string, string, string]) => (
+      const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${nome}`} position="relative" flexDirection="column" width="48%" borderStyle="round" borderDimColor paddingX={1}>
+        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" width="48%" borderStyle="round" borderDimColor paddingX={1}>
           {Client && !senzaClic
-            ? <Client key={`${gruppo}-${nome}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${nome}`, nome, valore }} />
+            ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore }} />
             : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>]}
-          <Box position="absolute" top={3} left={0} right={0} display={infoAperta === `${gruppo}-${nome}` ? 'flex' : 'none'} borderStyle="bold" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}
+          <Box position="absolute" top={3} left={0} right={0} display={infoAperta === `${gruppo}-${n}` ? 'flex' : 'none'} borderStyle="bold" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}
             hover={senzaClic ? { display: 'flex' } : undefined}>
             <Text size="caption" color="#e2e8f0">{nota}</Text>
           </Box>
@@ -244,112 +261,118 @@ export const register: Register = on => {
       )
       const righe: any[] = []
       for (let i = 0; i < voci.length; i += 2)
-        righe.push(<Box key={`${gruppo}-riga-${i}`} flexDirection="row" justifyContent="space-between">{voci.slice(i, i + 2).map(riquadro)}</Box>)
+        righe.push(<Box key={`${gruppo}-riga-${i}`} flexDirection="row" justifyContent="space-between">{voci.slice(i, i + 2).map((v, j) => riquadro(v, i + j))}</Box>)
       return <Box flexDirection="column-reverse" gap={1}>{righe.reverse()}</Box>
     }
     const sezione = (nome: string, ...righe: any[]) => <Box flexDirection="column" gap={0}>{titolo(nome)}{righe}</Box>
     const titolo = (t: string) => <Text weight="semibold" bold>{t}</Text>
 
     // limiti
-    const nomeLimite = (k: string) => (k === 'five_hour' ? 'Ultime 5 ore' : k === 'seven_day' ? 'Settimanale' : k === 'spend_limit' ? 'Spesa' : k)
+    const nomeLimite = (k: string) => (k === 'five_hour' ? T.ultime5 : k === 'seven_day' ? T.settimanale : k === 'spend_limit' ? T.spesa : k)
     const righeLimiti = L.length
       ? L.map(l => (
           <Box flexDirection="column" key={l.kind}>
             <Text>{nomeLimite(l.kind)}: <Text bold>{l.percentUsed}%</Text></Text>
-            {l.resetsAt ? <Text dimColor>si azzera {quando(l.resetsAt)}</Text> : null}
+            {l.resetsAt ? <Text dimColor>{T.siAzzera(quando(l.resetsAt))}</Text> : null}
             {barraSvg(l.percentUsed, coloreLimite(l.percentUsed), `${nomeLimite(l.kind)} ${l.percentUsed}%`)}
           </Box>
         ))
-      : [<Text dimColor>I limiti compaiono dopo la prossima risposta di Claude.</Text>]
+      : [<Text dimColor>{T.limitiDopo}</Text>]
 
     // memoria della sessione
     const pMem = mem?.percent ?? (mem?.tokens && mem.window ? (100 * mem.tokens) / mem.window : 0)
 
     const parti: any[] = [
       <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <Text dimColor>{d ? `Aggiornato ${fa(ora, Date.now())}` : 'Sto contando…'}</Text>
+        <Text dimColor>{d ? T.aggiornato(fa(ora, Date.now())) : T.stoContando}</Text>
       </Box>,
-      sezione('Limiti', <Box flexDirection="column" gap={1}>{righeLimiti}</Box>),
-      sezione('Memoria di questa chat',
+      sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>),
+      sezione(T.sezMemoria,
         // comprimere adesso: Claude riassume la chat e libera memoria, senza aspettare il 97%. Chiede conferma.
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-          <Text><Text bold>{Math.round(pMem)}%</Text><Text dimColor>  auto al {SOGLIA}%</Text></Text>
+          <Text><Text bold>{Math.round(pMem)}%</Text><Text dimColor>  {T.autoAl(SOGLIA)}</Text></Text>
           {statoComprimi === 'in corso'
-            ? <Text dimColor>Comprimo…</Text>
+            ? <Text dimColor>{T.comprimo}</Text>
             : statoComprimi === 'conferma'
               ? <Box flexDirection="row" gap={1}>
-                  <Button key="comprimi-si" label="Sì, comprimi" onPress={async () => {
+                  <Button key="comprimi-si" label={T.siComprimi} onPress={async () => {
                     await update($, comprimi, () => 'in corso')
                     try {
                       await comprimiChat($)
                       await update($, comprimi, () => '')
                     } catch (x) {
                       // si mostra il motivo vero per qualche secondo, poi sparisce
-                      await mostraErrore($, `Non riuscita: ${String((x as Error)?.message ?? x).slice(0, 160)}`)
+                      await mostraErrore($, T.nonRiuscita(String((x as Error)?.message ?? x).slice(0, 160)))
                     }
                     void aggiorna($)
                   }} />
-                  <Button key="comprimi-no" label="Annulla" onPress={() => { void update($, comprimi, () => '') }} />
+                  <Button key="comprimi-no" label={T.annulla} onPress={() => { void update($, comprimi, () => '') }} />
                 </Box>
-              : <Button key="comprimi" label="Comprimi ora" onPress={() => { void update($, comprimi, () => 'conferma') }} />}
+              : <Button key="comprimi" label={T.comprimiOra} onPress={() => { void update($, comprimi, () => 'conferma') }} />}
         </Box>,
-        statoComprimi === 'conferma' ? <Text dimColor>Claude riassume la chat per liberare memoria: i dettagli più vecchi diventano un riassunto.</Text>
-          : statoComprimi && /non riuscita/i.test(statoComprimi) ? <Text dimColor>{statoComprimi}</Text> : null,
-        <Text dimColor>{mem?.tokens ? `${breve(mem.tokens)} di ${breve(mem.window)} token` : '—'}</Text>,
+        statoComprimi === 'conferma' ? <Text dimColor>{T.spiegaComprimi}</Text>
+          : statoComprimi && statoComprimi !== 'in corso' ? <Text dimColor>{statoComprimi}</Text> : null,
+        <Text dimColor>{mem?.tokens ? T.diToken(breve(mem.tokens), breve(mem.window)) : '—'}</Text>,
         mem?.categorie?.length
-          ? disegno(strisce(mem.categorie.filter(c => c.nome !== 'Free space'), mem.window), 'Composizione della memoria', 260, 10)
-          : barraSvg(pMem, pMem >= 85 ? '#f59e0b' : BLU, `Memoria ${Math.round(pMem)}%`)),
+          ? disegno(strisce(mem.categorie.filter(c => c.nome !== 'Free space'), mem.window), T.composizione, 260, 10)
+          : barraSvg(pMem, pMem >= 85 ? '#f59e0b' : BLU, T.memoriaPct(Math.round(pMem)))),
       // il riquadro che spiega cosa c'è nella memoria di questa chat
       mem ? (
         <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
-          <Button key="contenuto" label={`${espanso ? '▾' : '▸'} Cosa contiene la chat`} onPress={() => { void update($, aperto, (v: boolean) => !v) }} />
+          <Button key="contenuto" label={`${espanso ? '▾' : '▸'} ${T.cosaContiene}`} onPress={() => { void update($, aperto, (v: boolean) => !v) }} />
           {espanso ? [
           (() => {
             const d0 = d?.sessioni.find(x => x.id === mem.id)
             return [
-              <Text>{d0?.titolo ?? 'Questa chat'}</Text>,
-              <Text dimColor>iniziata {mem.inizio ? quando(new Date(mem.inizio).toISOString()).replace('alle', 'alle') : '—'} · {mem.turni} tuoi messaggi · modello {mem.modello}</Text>,
+              <Text>{d0 && d0.titolo !== 'Senza titolo' ? d0.titolo : T.questaChat}</Text>,
+              <Text dimColor>{T.iniziata(mem.inizio ? quando(new Date(mem.inizio).toISOString()) : '—', mem.turni, mem.modello)}</Text>,
             ]
           })(),
           mem.categorie.filter(c => c.nome !== 'Free space').sort((a, b) => b.tokens - a.tokens).map(c => (
             <Box flexDirection="column" key={c.nome}>
-              <Text><Text color={colore(c.colore)}>● </Text>{NOMI_MEMORIA[c.nome] ?? c.nome}: <Text bold>{breve(c.tokens)}</Text></Text>
-              <Text dimColor>{Math.round((100 * c.tokens) / Math.max(1, mem.window))}% della memoria</Text>
+              <Text><Text color={colore(c.colore)}>● </Text>{T.memoria[c.nome] ?? c.nome}: <Text bold>{breve(c.tokens)}</Text></Text>
+              <Text dimColor>{T.dellaMemoria(Math.round((100 * c.tokens) / Math.max(1, mem.window)))}</Text>
             </Box>
           )),
-          mem.categorie.length === 0 ? <Text dimColor>La composizione arriva al prossimo aggiornamento.</Text> : null,
-          (() => { const libero = mem.categorie.find(c => c.nome === 'Free space'); return libero ? <Text dimColor>Spazio ancora libero: {breve(libero.tokens)} token. Al 97% Claude riassume da solo la chat per fare posto.</Text> : null })(),
+          mem.categorie.length === 0 ? <Text dimColor>{T.composizioneArriva}</Text> : null,
+          (() => { const libero = mem.categorie.find(c => c.nome === 'Free space'); return libero ? <Text dimColor>{T.spazioLibero(breve(libero.tokens))}</Text> : null })(),
           ] : null}
         </Box>
       ) : null,
     ]
-    if (err) parti.push(<Text color="red">Errore nel conteggio: {err}</Text>)
+    if (err) parti.push(<Text color="red">{T.erroreConteggio(err)}</Text>)
     if (!d) return <Box flexDirection="column" gap={1}>{parti}</Box>
 
     // sessioni e totali
     const conta = (st: string) => d.sessioni.filter(x => x.stato === st).length
     const t = d.totali
     parti.push(
-      sezione('Sessioni',
-        <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> al lavoro · <Text bold>{conta('ferma')}</Text> ferme · <Text color="#ef4444" bold>{conta('bloccata')}</Text> bloccate</Text>,
-        <Text dimColor>su {t.sessioni} in tutto</Text>),
-      sezione('Totale',
-        // la misura in cui mostrare i token: un pulsante, e solo quando lo premi compare l'elenco delle scelte
+      sezione(T.sessioni,
+        <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>,
+        <Text dimColor>{T.suTot(t.sessioni)}</Text>),
+      sezione(T.totale,
+        // la misura in cui mostrare i token: un pulsante, e solo quando lo premi compare l'elenco delle scelte.
+        // L'elenco si apre SOPRA i box sottostanti: il blocco del pulsante è scritto dopo i riquadri e mostrato prima (column-reverse),
+        // così è disegnato per ultimo e la finestra resta in primo piano
+        <Box flexDirection="column-reverse" gap={1}>
+        {riquadri(t, 'tot')}
+        <Box position="relative" flexDirection="column">
         <Box flexDirection="row" alignItems="center" gap={1}>
-          <Button key="scegli-misura" label={MISURE[m]?.nome ?? '1 pagina A4'} onPress={() => { void update($, menu, (x: string) => (x === 'misura' ? '' : 'misura')) }} />
-          <Text>= 1 Token</Text>
-        </Box>,
-        menuAperto === 'misura' ? (
-          <Box flexDirection="column" gap={1} borderStyle="round" borderDimColor padding={1}>
-            <Box flexDirection="row" flexWrap="wrap" gap={1}>
-              {Object.entries(MISURE).map(([k, x]) => (
-                <Button key={`misura-${k}`} label={x.nome.replace(/^1 /, '')} variant={k === m ? 'primary' : undefined} onPress={() => { void update($, misura, () => k); void update($, menu, () => '') }} />
+          <Button key="scegli-misura" label={nomeMisura(m).nome} onPress={() => { void update($, menu, (x: string) => (x === 'misura' ? '' : 'misura')) }} />
+          <Text>{T.ugualeToken}</Text>
+        </Box>
+        {menuAperto === 'misura' ? (
+          <Box position="absolute" top={3} left={0} right={0} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
+            <Box flexDirection="column" alignItems="stretch" gap={1}>
+              {Object.keys(MISURE).map(k => (
+                <Button key={`misura-${k}`} label={nomeMisura(k).nome.replace(/^1 /, '')} variant={k === m ? 'primary' : undefined} onPress={() => { void update($, misura, () => k); void update($, menu, () => '') }} />
               ))}
             </Box>
-            <Text dimColor size="caption">{MISURE[m]?.spiega}</Text>
+            <Text dimColor size="caption">{nomeMisura(m).spiega}</Text>
           </Box>
-        ) : null,
-        riquadri(t, 'tot')),
+        ) : null}
+        </Box>
+        </Box>),
     )
 
     // grafico del mese
@@ -366,15 +389,15 @@ export const register: Register = on => {
         const x = d.giorni[chiave(s.anno, s.mese, i)]
         if (x) { mese.token += x.token; mese.messaggi += x.messaggi; mese.richieste += x.richieste ?? 0; mese.input += x.input ?? 0; mese.output += x.output ?? 0; mese.cacheScritta += x.cacheScritta ?? 0; mese.cacheLetta += x.cacheLetta ?? 0 }
       }
-      parti.push(sezione('Utilizzo giorno per giorno',
+      parti.push(sezione(T.perGiorno,
         // giorno, mese e anno al centro, ognuno con il titolo sopra la sua scelta; le frecce dei mesi ai lati
         // frecce dei mesi ai due lati; giorno, mese e anno interi in mezzo (nessuno si restringe, così il testo non si taglia)
         <Box flexDirection="row" justifyContent="space-between" alignItems="flex-end" width="100%">
           <Box flexShrink={0}><Button key="mese-prima" label="◀" onPress={() => sposta(-1)} /></Box>
           {([
-            ['Giorno', 'giorno', String(s.giorno), Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v: string) => cambia({ giorno: Number(v) })],
-            ['Mese', 'mese', String(s.mese), MESI.map((m, i) => ({ value: String(i), label: m })), (v: string) => cambia({ mese: Number(v) })],
-            ['Anno', 'anno', String(s.anno), anni.map(a => ({ value: String(a), label: String(a) })), (v: string) => cambia({ anno: Number(v) })],
+            [T.giorno, 'giorno', String(s.giorno), Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v: string) => cambia({ giorno: Number(v) })],
+            [T.mese, 'mese', String(s.mese), T.mesi.map((m, i) => ({ value: String(i), label: m })), (v: string) => cambia({ mese: Number(v) })],
+            [T.anno, 'anno', String(s.anno), anni.map(a => ({ value: String(a), label: String(a) })), (v: string) => cambia({ anno: Number(v) })],
           ] as [string, string, string, { value: string; label: string }[], (v: string) => unknown][]).map(([nome, k, valore, opzioni, scegli]) => (
             <Box key={k} flexDirection="column" alignItems="center" gap={0} flexShrink={0} marginX={1}>
               <Text dimColor size="footnote">{nome}</Text>
@@ -387,7 +410,7 @@ export const register: Register = on => {
         menuAperto && menuAperto !== 'misura' ? (
           <Box flexDirection="row" flexWrap="wrap" gap={1} justifyContent="center" borderStyle="round" borderDimColor padding={1}>
             {(menuAperto === 'giorno' ? Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => [String(i + 1), String(i + 1)])
-              : menuAperto === 'mese' ? MESI.map((m, i) => [String(i), m])
+              : menuAperto === 'mese' ? T.mesi.map((m, i) => [String(i), m])
               : anni.map(a => [String(a), String(a)])).map(([v, nome]) => (
               <Button key={`op-${menuAperto}-${v}`} label={nome} onPress={() => {
                 void (menuAperto === 'giorno' ? cambia({ giorno: Number(v) }) : menuAperto === 'mese' ? cambia({ mese: Number(v) }) : cambia({ anno: Number(v) }))
@@ -396,12 +419,12 @@ export const register: Register = on => {
             ))}
           </Box>
         ) : null,
-        disegno(grafico(d, s), `Token per giorno di ${MESI[s.mese]} ${s.anno}`, undefined, 120, true),
+        disegno(grafico(d, s), T.tokenPerGiorno(T.mesi[s.mese], s.anno), undefined, 120, true),
         <Box flexDirection="column" alignItems="flex-start">
-          <Text bold>{s.giorno} {MESI[s.mese]} {s.anno}</Text>
-          <Text dimColor>{mis(g?.token ?? 0)} Token, {g?.messaggi ?? 0} messaggi</Text>
+          <Text bold>{s.giorno} {T.mesi[s.mese]} {s.anno}</Text>
+          <Text dimColor>{T.rigaGiorno(mis(g?.token ?? 0), g?.messaggi ?? 0)}</Text>
         </Box>,
-      ), sezione(`Totale di ${MESI[s.mese]} ${s.anno}`, riquadri(mese, 'mese')))
+      ), sezione(T.totaleDi(T.mesi[s.mese], s.anno), riquadri(mese, 'mese')))
     }
 
     // per chat
@@ -417,12 +440,12 @@ export const register: Register = on => {
         .filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => b.ultimo - a.ultimo)
       chat.push(
         <Box key={g} flexDirection="column" gap={1}>
-          <Text bold color={BLU}>{['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'][new Date(aa, mm - 1, gg).getDay()]} {gg} {MESI[mm - 1]}</Text>
+          <Text bold color={BLU}>{T.giorni[new Date(aa, mm - 1, gg).getDay()]} {gg} {T.mesi[mm - 1]}</Text>
           {qui.map(x => (
             <Box flexDirection="column" key={`${g}-${x.id}`}>
-              <Text bold>{x.stato === 'al lavoro' ? '● ' : x.stato === 'bloccata' ? '■ ' : ''}{x.titolo.slice(0, 48)}</Text>
-              <Text>{intero(x.messaggi)} messaggi · <Text bold>{mis(x.token)}</Text> Token · {mis(x.richieste ? x.token / x.richieste : 0)} per richiesta</Text>
-              <Text dimColor>{x.progetto} · ultima attività {fa(x.ultimo, Date.now())}</Text>
+              <Text bold>{x.stato === 'al lavoro' ? '● ' : x.stato === 'bloccata' ? '■ ' : ''}{(x.titolo === 'Senza titolo' ? T.senzaTitolo : x.titolo).slice(0, 48)}</Text>
+              <Text>{T.rigaChat(intero(x.messaggi), mis(x.token), mis(x.richieste ? x.token / x.richieste : 0))}</Text>
+              <Text dimColor>{x.progetto} · {T.ultimaAttivita(fa(x.ultimo, Date.now()))}</Text>
             </Box>
           ))}
         </Box>,
@@ -431,14 +454,14 @@ export const register: Register = on => {
     // le singole chat in un riquadro che si apre solo quando lo si vuole guardare
     parti.push(
       <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={1}>
-        <Button key="per-chat" label={`${elencoAperto ? '▾' : '▸'} Per chat · ${s ? MESI[s.mese] + ' ' + s.anno : ''} (${delMese.length})`} onPress={() => { void update($, chatAperte, (v: boolean) => !v) }} />
+        <Button key="per-chat" label={`${elencoAperto ? '▾' : '▸'} ${T.perChat(s ? T.mesi[s.mese] + ' ' + s.anno : '', delMese.length)}`} onPress={() => { void update($, chatAperte, (v: boolean) => !v) }} />
         {elencoAperto ? chat : null}
         {elencoAperto && giorniMese.length > 7
-          ? <Button key="tutte" label={mostraTutte ? 'Mostra meno' : `Mostra tutti i giorni (${giorniMese.length})`} onPress={() => { void update($, tutte, (v: boolean) => !v) }} />
+          ? <Button key="tutte" label={mostraTutte ? T.mostraMeno : T.mostraTutti(giorniMese.length)} onPress={() => { void update($, tutte, (v: boolean) => !v) }} />
           : null}
       </Box>,
     )
-    parti.push(<Text dimColor>Gli stati «al lavoro / ferma / bloccata» sono stimati dai file delle chat; i limiti sono quelli dell'ultima risposta.</Text>)
+    parti.push(<Text dimColor>{T.notaStati}</Text>)
 
     return <Box flexDirection="column" gap={1}>{parti}</Box>
   })

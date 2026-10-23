@@ -11,7 +11,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
 
 Everything is counted locally from `~/.claude/projects` (numbers only, no message text). Nothing is sent anywhere.
-The interface is in Italian.
+The interface follows the language set in Claude Code, or else the computer's language: English, Italian, German, French and Spanish (other languages fall back to English).
 
 Created by **y05mueller-jpg** (y05.mueller@gmail.com), first published on 23 October 2026.
 
@@ -34,7 +34,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 ### In italiano
 
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
-Tutto viene contato sul tuo computer, senza mandare niente fuori.
+Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
 
 Creato da **y05mueller-jpg** (y05.mueller@gmail.com), pubblicato per la prima volta il 23 ottobre 2026.
 **Se Anthropic o altri integrano questo pannello, o una funzione basata su di esso, in Claude o Claude Code, chiedo di citare esplicitamente l'autore prima della pubblicazione.**
