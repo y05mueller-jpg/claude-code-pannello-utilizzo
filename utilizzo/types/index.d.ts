@@ -17,12 +17,28 @@ export type Api = {
   lavori: number
   prezzi: Record<string, Prezzo>
   ricarica: string
+  // passaggio automatico: file della chiave presente (mai letto), percorso dell'aiutante, acceso o spento, soglia del piano in %
+  presente?: boolean
   chiave: boolean
+  agente?: string
+  auto?: boolean
+  soglia?: number
   ultimi: { data: string; titolo: string; modello: string; costo: number; minuti?: number; esito?: string }[]
+}
+
+// altri strumenti (strumenti/altri.js): i loro numeri nella stessa forma di Dati, i limiti di Codex e i prezzi di tutti i fornitori
+export type PrezzoListino = { entrata: number; uscita: number; cache_letta: number | null; cache_scritta: number | null; valuta: string; nota: string }
+export type Altri = {
+  aggiornato: number
+  fonti: Record<string, { nome: string; breve: string; colore: string; fornitore: string; dati: Dati }>
+  limiti: { fonte: string; minuti: number; percento: number; azzera: number }[]
+  cercati: { id: string; nome: string; trovato: boolean; errore: string }[]
+  listino: { letto: string; fornitori: Record<string, { nome: string; link: string; ricarica?: string; modelli: Record<string, PrezzoListino> }> }
+  link: Record<string, string>
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string }
   }
 }

@@ -36,6 +36,7 @@ export type Testi = {
   scrittiClaude: string; tokenRisposta: string; scrittiDaTe: string; tokenTuoi: string; nuoviEntrata: string; tokenPrimaVolta: string
   ultime5: string; settimanale: string; spesa: string; siAzzera: (q: string) => string; limitiDopo: string
   aggiornato: (f: string) => string; stoContando: string
+  creatoDa: string
   sezLimiti: string; sezMemoria: string; autoAl: (n: number) => string
   comprimo: string; siComprimi: string; annulla: string; comprimiOra: string; spiegaComprimi: string
   diToken: (a: string, b: string) => string; composizione: string; memoriaPct: (n: number) => string
@@ -79,6 +80,7 @@ const it: Testi = {
   scrittiDaTe: 'Scritti da te', tokenTuoi: 'Token dei messaggi che hai scritto (stima)', scrittiClaude: 'Scritti da Claude', tokenRisposta: 'Token di risposta', nuoviEntrata: 'Nuovi in entrata', tokenPrimaVolta: 'Token letti la prima volta',
   ultime5: 'Ultime 5 ore', settimanale: 'Settimanale', spesa: 'Spesa', siAzzera: q => `si azzera ${q}`, limitiDopo: 'I limiti compaiono dopo la prossima risposta di Claude.',
   aggiornato: f => `Aggiornato ${f}`, stoContando: 'Sto contando…',
+  creatoDa: "Creato da Yannis Müller · Fondatore di YouppyApps",
   sezLimiti: 'Limiti', sezMemoria: 'Memoria di questa chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimo…', siComprimi: 'Sì, comprimi', annulla: 'Annulla', comprimiOra: 'Comprimi ora',
   spiegaComprimi: 'Claude riassume la chat per liberare memoria: i dettagli più vecchi diventano un riassunto.',
@@ -125,6 +127,7 @@ const en: Testi = {
   scrittiDaTe: 'Written by you', tokenTuoi: 'Tokens of the messages you wrote (estimate)', scrittiClaude: 'Written by Claude', tokenRisposta: 'Reply tokens', nuoviEntrata: 'New input', tokenPrimaVolta: 'Tokens read for the first time',
   ultime5: 'Last 5 hours', settimanale: 'Weekly', spesa: 'Spend', siAzzera: q => `resets ${q}`, limitiDopo: "Limits appear after Claude's next reply.",
   aggiornato: f => `Updated ${f}`, stoContando: 'Counting…',
+  creatoDa: "Created by Yannis Müller · Founder of YouppyApps",
   sezLimiti: 'Limits', sezMemoria: 'Memory of this chat', autoAl: n => `auto at ${n}%`,
   comprimo: 'Compacting…', siComprimi: 'Yes, compact', annulla: 'Cancel', comprimiOra: 'Compact now',
   spiegaComprimi: 'Claude summarizes the chat to free memory: older details become a summary.',
@@ -171,6 +174,7 @@ const de: Testi = {
   scrittiDaTe: 'Von dir geschrieben', tokenTuoi: 'Token deiner geschriebenen Nachrichten (Schätzung)', scrittiClaude: 'Von Claude geschrieben', tokenRisposta: 'Antwort-Token', nuoviEntrata: 'Neu eingehend', tokenPrimaVolta: 'Zum ersten Mal gelesene Token',
   ultime5: 'Letzte 5 Stunden', settimanale: 'Wöchentlich', spesa: 'Ausgaben', siAzzera: q => `wird zurückgesetzt ${q}`, limitiDopo: 'Die Limits erscheinen nach der nächsten Antwort von Claude.',
   aggiornato: f => `Aktualisiert ${f}`, stoContando: 'Zähle…',
+  creatoDa: "Erstellt von Yannis Müller · Gründer von YouppyApps",
   sezLimiti: 'Limits', sezMemoria: 'Speicher dieses Chats', autoAl: n => `auto bei ${n}%`,
   comprimo: 'Komprimiere…', siComprimi: 'Ja, komprimieren', annulla: 'Abbrechen', comprimiOra: 'Jetzt komprimieren',
   spiegaComprimi: 'Claude fasst den Chat zusammen, um Speicher freizugeben: ältere Details werden zu einer Zusammenfassung.',
@@ -217,6 +221,7 @@ const fr: Testi = {
   scrittiDaTe: 'Écrits par toi', tokenTuoi: 'Tokens des messages que tu as écrits (estimation)', scrittiClaude: 'Écrits par Claude', tokenRisposta: 'Tokens de réponse', nuoviEntrata: 'Nouveaux en entrée', tokenPrimaVolta: 'Tokens lus pour la première fois',
   ultime5: 'Dernières 5 heures', settimanale: 'Hebdomadaire', spesa: 'Dépenses', siAzzera: q => `remise à zéro ${q}`, limitiDopo: 'Les limites apparaissent après la prochaine réponse de Claude.',
   aggiornato: f => `Mis à jour ${f}`, stoContando: 'Comptage…',
+  creatoDa: "Créé par Yannis Müller · Fondateur de YouppyApps",
   sezLimiti: 'Limites', sezMemoria: 'Mémoire de ce chat', autoAl: n => `auto à ${n} %`,
   comprimo: 'Compression…', siComprimi: 'Oui, compresser', annulla: 'Annuler', comprimiOra: 'Compresser',
   spiegaComprimi: 'Claude résume le chat pour libérer de la mémoire : les détails plus anciens deviennent un résumé.',
@@ -263,6 +268,7 @@ const es: Testi = {
   scrittiDaTe: 'Escritos por ti', tokenTuoi: 'Tokens de los mensajes que escribiste (estimación)', scrittiClaude: 'Escritos por Claude', tokenRisposta: 'Tokens de respuesta', nuoviEntrata: 'Nuevos de entrada', tokenPrimaVolta: 'Tokens leídos por primera vez',
   ultime5: 'Últimas 5 horas', settimanale: 'Semanal', spesa: 'Gasto', siAzzera: q => `se reinicia ${q}`, limitiDopo: 'Los límites aparecen tras la próxima respuesta de Claude.',
   aggiornato: f => `Actualizado ${f}`, stoContando: 'Contando…',
+  creatoDa: "Creado por Yannis Müller · Fundador de YouppyApps",
   sezLimiti: 'Límites', sezMemoria: 'Memoria de este chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimiendo…', siComprimi: 'Sí, comprimir', annulla: 'Cancelar', comprimiOra: 'Comprimir ahora',
   spiegaComprimi: 'Claude resume el chat para liberar memoria: los detalles más antiguos se convierten en un resumen.',
@@ -360,3 +366,72 @@ const apiEn: TestiApi = {
   nonClaudeCode: 'API credits work for the API, not for Claude Code on a plan.',
 }
 export const TESTI_API: Record<Lingua, TestiApi> = { it: apiIt, en: apiEn, de: apiEn, fr: apiEn, es: apiEn }
+
+// ---- altri strumenti (Codex, Gemini, Qwen…) e prezzi API di tutti i fornitori ----
+export type TestiAltri = {
+  strumento: string; tutti: string; nessuno: (nomi: string) => string; errore: (nome: string, e: string) => string
+  ore: (h: number) => string; settimana: string
+  prezzi: (n: number) => string; colonne: string; letto: (q: string) => string; pagina: (f: string) => string; nota: string
+  apiAttivo: (p: number) => string; apiPronto: (s: number) => string; apiChiave: string; apiAgente: string; apiFiniti: string; apiSpento: string
+}
+const altriIt: TestiAltri = {
+  apiAttivo: p => `Piano al ${p}%: i lavori passano ai crediti API`, apiPronto: s => `Dal ${s}% del piano i lavori passano da soli ai crediti API`,
+  apiChiave: 'Passaggio ai crediti API dal 90%: manca il file della chiave (chiave.txt)', apiAgente: 'Passaggio ai crediti API dal 90%: manca l’aiutante agente.py',
+  apiFiniti: 'Crediti API finiti o scaduti: si continua con il piano', apiSpento: 'Passaggio automatico ai crediti API spento',
+  strumento: 'Strumento', tutti: 'Tutti',
+  nessuno: n => `Altri strumenti: nessuno trovato su questo PC. Compaiono qui da soli appena li usi: ${n}.`,
+  errore: (n, e) => `${n}: non riesco a contarlo (${e})`,
+  ore: h => `ultime ${h} ore`, settimana: 'settimanale',
+  prezzi: n => `Prezzi API di tutti i fornitori (${n})`, colonne: 'entrata · uscita, $ per milione di token',
+  letto: q => `Prezzi ufficiali letti il ${q}`, pagina: f => `Pagina dei prezzi di ${f}`,
+  nota: 'Il costo vero dipende anche dalla memoria riletta (cache), che costa molto meno.',
+}
+const altriEn: TestiAltri = {
+  apiAttivo: p => `Plan at ${p}%: jobs now use API credits`, apiPronto: s => `From ${s}% of the plan, jobs switch to API credits by themselves`,
+  apiChiave: 'Switch to API credits at 90%: the key file (chiave.txt) is missing', apiAgente: 'Switch to API credits at 90%: the agente.py helper is missing',
+  apiFiniti: 'API credits used up or expired: the plan is used', apiSpento: 'Automatic switch to API credits is off',
+  strumento: 'Tool', tutti: 'All',
+  nessuno: n => `Other tools: none found on this computer. They show up here by themselves as soon as you use them: ${n}.`,
+  errore: (n, e) => `${n}: cannot count it (${e})`,
+  ore: h => `last ${h} hours`, settimana: 'weekly',
+  prezzi: n => `API prices of all providers (${n})`, colonne: 'input · output, $ per million tokens',
+  letto: q => `Official prices read on ${q}`, pagina: f => `${f} pricing page`,
+  nota: 'The real cost also depends on re-read memory (cache), which costs much less.',
+}
+const altriDe: TestiAltri = {
+  apiAttivo: p => `Plan bei ${p}%: Aufgaben laufen jetzt über API-Guthaben`, apiPronto: s => `Ab ${s}% des Plans laufen Aufgaben von selbst über API-Guthaben`,
+  apiChiave: 'Wechsel zu API-Guthaben ab 90%: die Schlüsseldatei (chiave.txt) fehlt', apiAgente: 'Wechsel zu API-Guthaben ab 90%: der Helfer agente.py fehlt',
+  apiFiniti: 'API-Guthaben aufgebraucht oder abgelaufen: der Plan wird genutzt', apiSpento: 'Automatischer Wechsel zu API-Guthaben ist aus',
+  strumento: 'Werkzeug', tutti: 'Alle',
+  nessuno: n => `Andere Werkzeuge: keine auf diesem Computer gefunden. Sie erscheinen hier von selbst, sobald du sie benutzt: ${n}.`,
+  errore: (n, e) => `${n}: kann nicht gezählt werden (${e})`,
+  ore: h => `letzte ${h} Stunden`, settimana: 'wöchentlich',
+  prezzi: n => `API-Preise aller Anbieter (${n})`, colonne: 'Eingabe · Ausgabe, $ pro Million Token',
+  letto: q => `Offizielle Preise gelesen am ${q}`, pagina: f => `Preisseite von ${f}`,
+  nota: 'Die echten Kosten hängen auch vom wiedergelesenen Speicher (Cache) ab, der viel weniger kostet.',
+}
+const altriFr: TestiAltri = {
+  apiAttivo: p => `Forfait à ${p} % : les tâches passent aux crédits API`, apiPronto: s => `Dès ${s} % du forfait, les tâches passent seules aux crédits API`,
+  apiChiave: 'Passage aux crédits API à 90 % : le fichier de clé (chiave.txt) manque', apiAgente: 'Passage aux crédits API à 90 % : l’assistant agente.py manque',
+  apiFiniti: 'Crédits API épuisés ou expirés : le forfait est utilisé', apiSpento: 'Passage automatique aux crédits API désactivé',
+  strumento: 'Outil', tutti: 'Tous',
+  nessuno: n => `Autres outils : aucun trouvé sur cet ordinateur. Ils apparaissent ici tout seuls dès que tu les utilises : ${n}.`,
+  errore: (n, e) => `${n} : impossible de le compter (${e})`,
+  ore: h => `dernières ${h} heures`, settimana: 'hebdomadaire',
+  prezzi: n => `Prix API de tous les fournisseurs (${n})`, colonne: 'entrée · sortie, $ par million de tokens',
+  letto: q => `Prix officiels lus le ${q}`, pagina: f => `Page des prix de ${f}`,
+  nota: 'Le coût réel dépend aussi de la mémoire relue (cache), qui coûte beaucoup moins.',
+}
+const altriEs: TestiAltri = {
+  apiAttivo: p => `Plan al ${p}%: las tareas pasan a los créditos API`, apiPronto: s => `Desde el ${s}% del plan, las tareas pasan solas a los créditos API`,
+  apiChiave: 'Cambio a créditos API al 90%: falta el archivo de la clave (chiave.txt)', apiAgente: 'Cambio a créditos API al 90%: falta el ayudante agente.py',
+  apiFiniti: 'Créditos API agotados o caducados: se usa el plan', apiSpento: 'Cambio automático a créditos API desactivado',
+  strumento: 'Herramienta', tutti: 'Todas',
+  nessuno: n => `Otras herramientas: ninguna en este ordenador. Aparecen aquí solas en cuanto las uses: ${n}.`,
+  errore: (n, e) => `${n}: no se puede contar (${e})`,
+  ore: h => `últimas ${h} horas`, settimana: 'semanal',
+  prezzi: n => `Precios API de todos los proveedores (${n})`, colonne: 'entrada · salida, $ por millón de tokens',
+  letto: q => `Precios oficiales leídos el ${q}`, pagina: f => `Página de precios de ${f}`,
+  nota: 'El coste real también depende de la memoria releída (caché), que cuesta mucho menos.',
+}
+export const TESTI_ALTRI: Record<Lingua, TestiAltri> = { it: altriIt, en: altriEn, de: altriDe, fr: altriFr, es: altriEs }
