@@ -16,14 +16,16 @@ a { color: var(--vscode-textLink-foreground); }
 .errore { color: var(--vscode-errorForeground, #ef4444); }
 
 /* top: source selector + refresh */
-.cima { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.fonti { display: inline-flex; border: 1px solid var(--bordo); border-radius: 6px; overflow: hidden; }
-.fonti button { border: 0; background: transparent; padding: 4px 10px; display: inline-flex; align-items: center; gap: 6px; }
-.fonti button + button { border-left: 1px solid var(--bordo); }
-.fonti button.scelto { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.cima { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+/* one pill per tool; with many tools they wrap onto more lines */
+.fonti { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.fonti button { border: 1px solid var(--bordo); border-radius: 999px; background: transparent; padding: 3px 9px; display: inline-flex; align-items: center; gap: 6px; }
+.fonti button.scelto { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }
+.cima .icona { flex-shrink: 0; }
+.legenda span { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
+.fornitore { font-weight: 600; margin-top: 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .solo { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .fonti i, .legenda i, .punto, .solo i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.legenda i { margin: 0 4px 0 10px; } .legenda i:first-child { margin-left: 0; }
 .punto { margin-right: 6px; vertical-align: middle; }
 .icona { border: 1px solid var(--bordo); background: transparent; border-radius: 6px; width: 28px; height: 26px; padding: 0; }
 .icona.attiva { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }

@@ -276,5 +276,56 @@
     const x = String(v || '').toLowerCase();
     return /^it/.test(x) ? 'it' : /^de/.test(x) ? 'de' : /^fr/.test(x) ? 'fr' : /^es/.test(x) ? 'es' : 'en';
   };
+  // ---- texts for the many tools and providers (added with Gemini, Qwen, Kimi, GLM, MiniMax, opencode, Cline…) ----
+  const aggiunte = {
+    it: {
+      nienteTrovato: 'Nessuna chat trovata su questo computer. Cartelle controllate:', nonTrovati: l => `Non trovati su questo computer: ${l}.`,
+      sezLimiti: n => `Limiti di ${n}`, lettoDa: (n, f) => `dall'ultima risposta di ${n}, ${f}`,
+      api: { senzaFile: 'Nessun file dei crediti: le stime sotto usano i prezzi ufficiali.', senzaPrezzo: n => `${n} chat con un modello senza prezzo noto: non conteggiate.`,
+        tuoiPrezzi: 'I tuoi prezzi', paginaPrezzi: 'pagina prezzi', letto: d => `Prezzi letti ${d} dalle pagine ufficiali dei fornitori.`,
+        stima: 'Stime con i prezzi del tuo file o, altrimenti, con quelli ufficiali (senza sconti, fasce orarie o contesti lunghi). La memoria riletta (cache) costa molto meno.',
+        passi: ['Apri la pagina del fornitore (link sotto)', 'Billing → aggiungi credito', 'Imposta un limite di spesa mensile'] },
+    },
+    en: {
+      nienteTrovato: 'No chats found on this computer. Folders checked:', nonTrovati: l => `Not found on this computer: ${l}.`,
+      sezLimiti: n => `${n} limits`, lettoDa: (n, f) => `from ${n}'s last reply, ${f}`,
+      api: { senzaFile: 'No credits file: the estimates below use the official prices.', senzaPrezzo: n => `${n} chats with a model without a known price: not counted.`,
+        tuoiPrezzi: 'Your prices', paginaPrezzi: 'price page', letto: d => `Prices read ${d} on the providers' official pages.`,
+        stima: 'Estimates with the prices in your file or else the official ones (no discounts, off-peak hours or long-context tiers). Re-read memory (cache) costs much less.',
+        passi: ["Open the provider's page (link below)", 'Billing → add credits', 'Set a monthly spend limit'] },
+    },
+    de: {
+      nienteTrovato: 'Keine Chats auf diesem Computer gefunden. Geprüfte Ordner:', nonTrovati: l => `Auf diesem Computer nicht gefunden: ${l}.`,
+      sezLimiti: n => `Limits von ${n}`, lettoDa: (n, f) => `aus der letzten Antwort von ${n}, ${f}`,
+      api: { senzaFile: 'Keine Guthaben-Datei: die Schätzungen unten nutzen die offiziellen Preise.', senzaPrezzo: n => `${n} Chats mit einem Modell ohne bekannten Preis: nicht mitgezählt.`,
+        tuoiPrezzi: 'Deine Preise', paginaPrezzi: 'Preisseite', letto: d => `Preise gelesen ${d} auf den offiziellen Seiten der Anbieter.`,
+        stima: 'Schätzungen mit den Preisen aus deiner Datei, sonst mit den offiziellen (ohne Rabatte, Nebenzeiten oder Langkontext-Stufen). Erneut gelesener Speicher (Cache) kostet viel weniger.',
+        passi: ['Seite des Anbieters öffnen (Link unten)', 'Billing → Guthaben hinzufügen', 'Ein monatliches Ausgabenlimit setzen'] },
+    },
+    fr: {
+      nienteTrovato: 'Aucun chat trouvé sur cet ordinateur. Dossiers vérifiés :', nonTrovati: l => `Introuvables sur cet ordinateur : ${l}.`,
+      sezLimiti: n => `Limites de ${n}`, lettoDa: (n, f) => `d'après la dernière réponse de ${n}, ${f}`,
+      api: { senzaFile: 'Pas de fichier de crédits : les estimations ci-dessous utilisent les prix officiels.', senzaPrezzo: n => `${n} chats avec un modèle sans prix connu : non comptés.`,
+        tuoiPrezzi: 'Tes prix', paginaPrezzi: 'page des prix', letto: d => `Prix lus ${d} sur les pages officielles des fournisseurs.`,
+        stima: "Estimations avec les prix de ton fichier ou sinon les prix officiels (sans remises, heures creuses ni paliers de long contexte). La mémoire relue (cache) coûte bien moins.",
+        passi: ['Ouvre la page du fournisseur (lien ci-dessous)', 'Billing → ajouter du crédit', 'Fixe une limite de dépense mensuelle'] },
+    },
+    es: {
+      nienteTrovato: 'No se encontró ningún chat en este ordenador. Carpetas revisadas:', nonTrovati: l => `No encontrados en este ordenador: ${l}.`,
+      sezLimiti: n => `Límites de ${n}`, lettoDa: (n, f) => `de la última respuesta de ${n}, ${f}`,
+      api: { senzaFile: 'Sin archivo de créditos: las estimaciones de abajo usan los precios oficiales.', senzaPrezzo: n => `${n} chats con un modelo sin precio conocido: no contados.`,
+        tuoiPrezzi: 'Tus precios', paginaPrezzi: 'página de precios', letto: d => `Precios leídos ${d} en las páginas oficiales de los proveedores.`,
+        stima: 'Estimaciones con los precios de tu archivo o, si no, los oficiales (sin descuentos, horas valle ni tramos de contexto largo). La memoria releída (caché) cuesta mucho menos.',
+        passi: ['Abre la página del proveedor (enlace abajo)', 'Billing → añadir crédito', 'Pon un límite de gasto mensual'] },
+    },
+  };
+  for (const [k, t] of Object.entries({ it, en, de, fr, es })) {
+    const { api, ...resto } = aggiunte[k];
+    Object.assign(t, resto); Object.assign(t.api, api);
+    // texts of the first version that are no longer used
+    for (const vecchio of ['claudeAssente', 'codexAssente', 'sezLimitiCodex', 'nomeFonte', 'nomeBreve']) delete t[vecchio];
+    for (const vecchio of ['vaiConsole', 'vaiOpenai']) delete t.api[vecchio];
+  }
+
   window.TESTI = { it, en, de, fr, es, lingua };
 })();

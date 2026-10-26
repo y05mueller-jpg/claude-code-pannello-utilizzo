@@ -1,8 +1,8 @@
 {
   "name": "pannello-utilizzo",
-  "displayName": "Usage Panel – Claude Code & OpenAI Codex",
-  "description": "Side panel with messages, tokens, a daily chart and usage per chat for Claude Code and OpenAI Codex CLI. Counted locally from your chat files: no network, no API key.",
-  "version": "1.0.0",
+  "displayName": "Usage Panel – Claude, Codex, Gemini, Qwen, Kimi, GLM and more",
+  "description": "Side panel with messages, tokens, a daily chart and usage per chat for Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue and Aider. Counted locally from their files: no network, no API key.",
+  "version": "1.1.0",
   "publisher": "y05mueller-jpg",
   "author": {
     "name": "y05mueller-jpg",
@@ -28,13 +28,20 @@
   ],
   "keywords": [
     "claude",
-    "claude code",
     "codex",
     "openai",
+    "gemini",
+    "qwen",
+    "kimi",
+    "glm",
+    "deepseek",
+    "minimax",
+    "opencode",
+    "cline",
+    "roo code",
+    "aider",
     "tokens",
-    "usage",
-    "cursor",
-    "windsurf"
+    "usage"
   ],
   "main": "./extension.js",
   "activationEvents": [],
@@ -83,25 +90,92 @@
     "configuration": {
       "title": "Usage Panel",
       "properties": {
-        "pannelloUtilizzo.sources.claudeCode": {
+        "pannelloUtilizzo.sources.claude": {
           "type": "boolean",
           "default": true,
-          "description": "Count Claude Code chats (~/.claude/projects)."
+          "order": 1,
+          "description": "Count Claude Code usage."
         },
-        "pannelloUtilizzo.sources.openaiCodex": {
+        "pannelloUtilizzo.sources.codex": {
           "type": "boolean",
           "default": true,
-          "description": "Count OpenAI Codex CLI sessions (~/.codex/sessions)."
+          "order": 2,
+          "description": "Count OpenAI Codex usage (reader written from the official source code)."
         },
-        "pannelloUtilizzo.claudeCode.folder": {
-          "type": "string",
-          "default": "",
-          "description": "Folder with the Claude Code chats. Empty = ~/.claude/projects."
+        "pannelloUtilizzo.sources.gemini": {
+          "type": "boolean",
+          "default": true,
+          "order": 3,
+          "description": "Count Gemini CLI usage (reader written from the official source code)."
         },
-        "pannelloUtilizzo.openaiCodex.folder": {
-          "type": "string",
-          "default": "",
-          "description": "Codex home folder (the one that contains 'sessions'). Empty = ~/.codex. Set it if you use CODEX_HOME."
+        "pannelloUtilizzo.sources.qwen": {
+          "type": "boolean",
+          "default": true,
+          "order": 4,
+          "description": "Count Qwen Code usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.kimi": {
+          "type": "boolean",
+          "default": true,
+          "order": 5,
+          "description": "Count Kimi CLI usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.zcode": {
+          "type": "boolean",
+          "default": true,
+          "order": 6,
+          "description": "Count ZCode (GLM) usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.minimax": {
+          "type": "boolean",
+          "default": true,
+          "order": 7,
+          "description": "Count MiniMax Code usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.opencode": {
+          "type": "boolean",
+          "default": true,
+          "order": 8,
+          "description": "Count opencode usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.kilo": {
+          "type": "boolean",
+          "default": true,
+          "order": 9,
+          "description": "Count Kilo Code usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.cline": {
+          "type": "boolean",
+          "default": true,
+          "order": 10,
+          "description": "Count Cline usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.roo": {
+          "type": "boolean",
+          "default": true,
+          "order": 11,
+          "description": "Count Roo Code usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.continue": {
+          "type": "boolean",
+          "default": true,
+          "order": 12,
+          "description": "Count Continue usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.sources.aider": {
+          "type": "boolean",
+          "default": true,
+          "order": 13,
+          "description": "Count Aider usage (reader written from the official source code)."
+        },
+        "pannelloUtilizzo.folders": {
+          "type": "object",
+          "default": {},
+          "order": 14,
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Custom folders per tool, e.g. `{ \"codex\": \"D:/codex-home\", \"gemini\": \"~/.gemini\", \"aider\": \"C:/work/app1;C:/work/app2\" }`. Keys: `claude`, `codex`, `gemini`, `qwen`, `kimi`, `zcode`, `minimax`, `opencode`, `kilo`, `cline`, `roo`, `continue`, `aider`. Empty = the standard folder of each tool."
         },
         "pannelloUtilizzo.apiCredits.enabled": {
           "type": "boolean",
@@ -136,7 +210,7 @@
     }
   },
   "scripts": {
-    "test": "node test/prova.js",
+    "test": "node test/prova.js && node test/prova-fonti.js",
     "package": "vsce package --baseContentUrl https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/blob/main/vscode/ --baseImagesUrl https://raw.githubusercontent.com/y05mueller-jpg/claude-code-pannello-utilizzo/main/vscode/"
   },
   "devDependencies": {

@@ -1,15 +1,30 @@
 // "Usage Panel" for VS Code, Cursor, Windsurf and any editor compatible with VS Code extensions.
-// A side panel with the messages and tokens used with Claude Code and OpenAI Codex CLI,
-// counted only from the chat files on this computer. No network, no API key, no message text.
+// A side panel with the messages and tokens used with AI coding tools (Claude Code, OpenAI Codex, Gemini CLI,
+// Qwen Code, Kimi CLI, opencode, Cline, Roo Code, Continue, Aider…), counted only from the files these tools
+// already write on this computer. No network, no API key, no message text.
 'use strict';
 const vscode = require('vscode');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 const crypto = require('crypto');
+const { FONTI } = require('./src/fonti');
+const { LINK } = require('./src/prezzi');
 
-const LINK = {
-  claude: 'https://console.anthropic.com/settings/billing',
-  openai: 'https://platform.openai.com/settings/organization/billing',
-};
+// the "globalStorage" folders of the editors on this computer (Cline, Roo Code… keep their tasks there)
+function archiviEditor(context) {
+  const out = new Set([path.dirname(context.globalStorageUri.fsPath)]);
+  const editori = ['Code', 'Code - Insiders', 'Cursor', 'Windsurf', 'VSCodium', 'Trae', 'Kiro'];
+  // standard places only (no environment variables are read)
+  const basi = process.platform === 'win32' ? [path.join(os.homedir(), 'AppData', 'Roaming')]
+    : process.platform === 'darwin' ? [path.join(os.homedir(), 'Library', 'Application Support')]
+      : [path.join(os.homedir(), '.config')];
+  for (const b of basi) for (const e of editori) {
+    const p = path.join(b, e, 'User', 'globalStorage');
+    try { if (fs.statSync(p).isDirectory()) out.add(p); } catch (x) { /* not installed */ }
+  }
+  return [...out];
+}
 
 function activate(context) {
   const pannello = new Pannello(context);
@@ -27,11 +42,12 @@ class Pannello {
 
   impostazioni() {
     const c = vscode.workspace.getConfiguration('pannelloUtilizzo');
+    const attive = {};
+    for (const f of FONTI) attive[f.id] = c.get(`sources.${f.id}`, true) !== false;
+    const cartelle = c.get('folders', {}) || {};
     return {
-      claude: c.get('sources.claudeCode', true),
-      codex: c.get('sources.openaiCodex', true),
-      cartellaClaude: c.get('claudeCode.folder', ''),
-      cartellaCodex: c.get('openaiCodex.folder', ''),
+      attive,
+      cartelle: typeof cartelle === 'object' ? cartelle : {},
       api: c.get('apiCredits.enabled', true),
       fileApi: c.get('apiCredits.configFile', ''),
       secondi: Math.max(15, Number(c.get('refreshSeconds', 60)) || 60),
@@ -54,8 +70,8 @@ class Pannello {
       if (!m) return;
       if (m.tipo === 'pronto') { if (this.ultimi) this.invia(this.ultimi); this.aggiorna(); }
       if (m.tipo === 'aggiorna') this.aggiorna();
-      // only the two fixed billing pages can be opened, in the normal browser
-      if (m.tipo === 'link' && LINK[m.quale]) vscode.env.openExternal(vscode.Uri.parse(LINK[m.quale]));
+      // only the fixed official pages listed in src/prezzi.js can be opened, in the normal browser
+      if (m.tipo === 'link' && typeof m.quale === 'string' && Object.prototype.hasOwnProperty.call(LINK, m.quale)) vscode.env.openExternal(vscode.Uri.parse(LINK[m.quale]));
     });
     vista.onDidChangeVisibility(() => { if (vista.visible) this.aggiorna(); });
     vista.onDidDispose(() => { this.vista = null; });
@@ -71,14 +87,15 @@ class Pannello {
 
   invia(dati) {
     const o = this.impostazioni();
-    if (this.vista) this.vista.webview.postMessage({ tipo: 'dati', dati, lingua: this.lingua(), attive: { claude: o.claude, codex: o.codex } });
+    if (this.vista) this.vista.webview.postMessage({ tipo: 'dati', dati, lingua: this.lingua(), attive: o.attive });
   }
 
   aggiorna() {
     if (this.lavoro) { this.ancora = true; return; }
     const o = this.impostazioni();
-    const opzioni = { claude: o.claude, codex: o.codex, cartellaClaude: o.cartellaClaude, cartellaCodex: o.cartellaCodex, api: o.api, fileApi: o.fileApi, cache: this.context.globalStorageUri.fsPath };
-    if (this.vista) this.vista.webview.postMessage({ tipo: 'inCorso', lingua: this.lingua(), attive: { claude: o.claude, codex: o.codex } });
+    const progetti = (vscode.workspace.workspaceFolders || []).map(w => w.uri.fsPath);
+    const opzioni = { attive: o.attive, cartelle: o.cartelle, api: o.api, fileApi: o.fileApi, cache: this.context.globalStorageUri.fsPath, archivi: archiviEditor(this.context), progetti };
+    if (this.vista) this.vista.webview.postMessage({ tipo: 'inCorso', lingua: this.lingua(), attive: o.attive });
     const fine = (esito) => {
       this.lavoro = null;
       if (esito.ok) { this.ultimi = esito.dati; this.invia(esito.dati); }

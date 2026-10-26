@@ -30,11 +30,11 @@ The section appears only if you create `~/.claude/utilizzo-api/config.json` (sta
 Optionally, any tool of yours can append one line per job to `~/.claude/utilizzo-api/uso.jsonl` (`{ "data", "titolo", "modello", "costo" }`) to show spending.
 The panel never reads or needs an API key and is not connected to any account.
 
-## VS Code, Cursor, Windsurf — Claude Code and OpenAI Codex
+## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
-It adapts to the provider by itself: it counts **Claude Code** (`~/.claude/projects`) and **OpenAI Codex CLI** (`~/.codex/sessions`) chats found on the computer and shows only what it finds; with both, a selector lets you see Claude, OpenAI or all together.
-Same sections (totals, daily chart by day / month / year, usage per chat, optional API credits), plus the Codex 5-hour and weekly limits. Numbers only, no network, no API key.
+It adapts to your tools by itself: it counts **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue and Aider** usage found on the computer (any model, DeepSeek included) and shows only what it finds; with more than one tool, a selector lets you see each one or all together.
+Same sections (totals, daily chart by day / month / year, usage per chat, API credits), plus the limits reported by Codex and the official API prices of all the main providers, Chinese ones included. Numbers only, no network, no API key.
 
 Download the `.vsix` from the [Releases](https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/releases) page and install it with **Extensions → … → Install from VSIX…**. Details in [`vscode/README.md`](vscode/README.md).
 
@@ -51,7 +51,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
 Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
 
-Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo al provider: conta le chat di **Claude Code** e di **OpenAI Codex CLI** che trova sul computer e mostra solo quelle; se ci sono tutti e due, in alto si sceglie Claude, OpenAI o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
+Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 
 Creato da **y05mueller-jpg** (y05.mueller@gmail.com), pubblicato per la prima volta il 23 ottobre 2026.
 **Se Anthropic o altri integrano questo pannello, o una funzione basata su di esso, in Claude o Claude Code, chiedo di citare esplicitamente l'autore prima della pubblicazione.**

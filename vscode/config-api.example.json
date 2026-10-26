@@ -11,7 +11,7 @@
       "arrivo": "2026-01-01",
       "scadenza": "2027-01-01",
       "nota": "example",
-      "fonte": "openai"
+      "fornitore": "openai"
     }
   ],
   "prezzi_per_milione": {
