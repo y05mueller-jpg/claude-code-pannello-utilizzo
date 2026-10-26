@@ -66,6 +66,7 @@ const ultimoLivello = atom({ plugin: 'utilizzo', key: 'ultimoLivello' } as const
 // costo effettivo delle ultime richieste (dal costo della sessione ai prezzi API, come /cost), ricordate tra le chat
 type Richiesta = { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }
 const richieste = atom({ plugin: 'utilizzo', key: 'richieste' } as const, [] as Richiesta[])
+const costoSessione = atom({ plugin: 'utilizzo', key: 'costoSessione' } as const, 0)   // costo totale della chat aperta, prezzi API
 let usdInizio = -1   // costo della sessione quando è partita la richiesta in corso
 const usdOra = async ($: any): Promise<number> => { try { return Number((await $.session.usage()).cost?.usd ?? 0) } catch (x) { return 0 } }
 // altri strumenti (Codex, Gemini, Qwen…), quale si guarda ('claude', il loro id o 'tutti') e il riquadro dei prezzi di tutti i fornitori
@@ -169,6 +170,7 @@ const T_GIRI = {
   consigliato: 'consigliato',
   auto: 'Consigliato (automatico)',
   costoEffettivo: 'Costo effettivo',
+  sessione: 'Totale API di questa chat',
   inCorso: 'in corso… ',
   nessuna: 'Nessuna richiesta ancora',
   totale: (n: number, t: string) => `Ultime ${n} richieste: ${t} in tutto (prezzi API)`,
@@ -292,6 +294,7 @@ async function aggiornaApi($: any): Promise<boolean> {
 }
 async function aggiorna($: any) {
   controllaPannello($)
+  { const tot = await usdOra($); await update($, costoSessione, () => tot) }
   if (usdInizio >= 0) { const c = Math.max(0, (await usdOra($)) - usdInizio); await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo: c } : x))) }
   if (!linguaDa) {
     void update($, menu, () => '')   // una volta per caricamento: nessun menu rimasto aperto da prima
@@ -403,6 +406,7 @@ export const register: Register = on => {
     if (usdInizio >= 0) {
       const costo = Math.max(0, (await usdOra($)) - usdInizio)
       usdInizio = -1
+      { const tot = await usdOra($); await update($, costoSessione, () => tot) }
       await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo, inCorso: false } : x)))
       try { await $.store.set('richieste', (await read($, richieste)).filter(x => !x.inCorso)) } catch (x) { /* resta solo in questa chat */ }
     }
@@ -636,6 +640,7 @@ export const register: Register = on => {
     const livNow = ((await read($, ultimoLivello)) || 'medio') as Livello
     const gAttivi = giriEffettivi(gScelta, livNow)
     const rich = (await read($, richieste)) ?? []
+    const totSessione = await read($, costoSessione)
     const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n) }
     const tre = (n: number) => `${soldi(tetto(n, 'leggero'))} · ${soldi(tetto(n, 'medio'))} · ${soldi(tetto(n, 'pesante'))}`
     const opzGiri = [
@@ -655,6 +660,7 @@ export const register: Register = on => {
         {Select
           ? <Select key="giri-costi" label={T_GIRI.costoEffettivo} options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
           : <Text>{opzCosti[0]?.label}</Text>}
+        <Box flexDirection="row" justifyContent="space-between"><Text>{T_GIRI.sessione}</Text><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
         {rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null}
       </Box>,
     )
