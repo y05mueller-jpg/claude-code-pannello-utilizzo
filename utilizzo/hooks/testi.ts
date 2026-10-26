@@ -296,7 +296,7 @@ export type TestiApi = {
   nessunCredito: string; lavori: (n: number, speso: string) => string
   questaChat: (c: string) => string; oggiMese: (o: string, m: string) => string; stima: string
   apriRicarica: string; costiTitolo: string; costi: [string, string][]; prezzi: (mod: string, e: string, u: string, l: string) => string
-  comeRicaricare: string; vaiConsole: string; senzaChiave: string; ultimi: string; nonClaudeCode: string; aggiornato: string; nonAggiornato: string
+  comeRicaricare: string; vaiConsole: string; senzaChiave: string; ultimi: string; nonClaudeCode: string; aggiorna: string; aggiornato: string; nonAggiornato: string
   conCento: string; esempiCento: string[]; prezziTitolo: string; colonne: string; nomeModello: Record<string, string>; ricaricaTitolo: string; passi: string[]
 }
 const apiIt: TestiApi = {
@@ -331,6 +331,7 @@ const apiIt: TestiApi = {
   senzaChiave: '',
   ultimi: 'Ultimi lavori',
   nonClaudeCode: "I crediti API valgono per l'API, non per Claude Code con un piano.",
+  aggiorna: 'Aggiorna la spesa API',
   aggiornato: 'Spesa API aggiornata',
   nonAggiornato: 'Non riesco a leggere la spesa API',
 }
@@ -366,6 +367,7 @@ const apiEn: TestiApi = {
   senzaChiave: '',
   ultimi: 'Latest jobs',
   nonClaudeCode: 'API credits work for the API, not for Claude Code on a plan.',
+  aggiorna: 'Refresh API spending',
   aggiornato: 'API spending updated',
   nonAggiornato: 'Could not read API spending',
 }

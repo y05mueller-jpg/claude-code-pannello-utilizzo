@@ -216,7 +216,16 @@ function controllaPannello($: any) {
     })()
   })
 }
-// rilegge solo crediti e spesa API (registro dei lavori): veloce, usata anche dal tasto 🔄
+// icona del tasto «aggiorna spesa API»: due frecce in cerchio, tratto bianco sottile, sfondo trasparente
+const ICONA_RICARICA = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M4 12a8 8 0 0 1 13.66-5.66L20 8.5"/><path d="M20 3.5v5h-5"/>'
+  + '<path d="M20 12a8 8 0 0 1-13.66 5.66L4 15.5"/><path d="M4 20.5v-5h5"/></svg>'
+async function ricaricaApi($: any) {
+  const A = TESTI_API[(linguaDa || 'it') as Lingua] ?? TESTI_API.it
+  const ok = await aggiornaApi($)
+  $.ui.toast(ok ? A.aggiornato : A.nonAggiornato)
+}
+// rilegge solo crediti e spesa API (registro dei lavori): veloce, usata anche dall'icona «aggiorna»
 async function aggiornaApi($: any): Promise<boolean> {
   try {
     const ra = await $.process.run(['node', '-e', API_JS], { timeoutMs: 20000 })
@@ -335,6 +344,8 @@ export const register: Register = on => {
   on('ui.message', async ($, e, next) => {
     const nuovaMisura = (e.data as any)?.misura
     if (typeof nuovaMisura === 'string') { await update($, misura, () => nuovaMisura); await update($, menu, () => ''); return {} }
+    // clic sull'icona delle due frecce accanto a ⓘ: rilegge subito la spesa API
+    if ((e.data as any)?.ricaricaApi) { await ricaricaApi($); return {} }
     // mese o anno scelto nella griglia del menu (griglia-clic.tsx)
     const nuovoMese = (e.data as any)?.mese, nuovoAnno = (e.data as any)?.anno, nuovoGiorno = (e.data as any)?.giorno
     if (typeof nuovoMese === 'number' || typeof nuovoAnno === 'number' || typeof nuovoGiorno === 'number') {
@@ -489,7 +500,15 @@ export const register: Register = on => {
           <Button key="api-ricarica" label={`${apApert ? '▾' : '▸'} ${A.apriRicarica}`} onPress={() => { void update($, apiAperto, (v: boolean) => !v) }} />
           <Button key="api-info" label="ⓘ" variant={apInfo ? 'primary' : undefined} onPress={() => { void update($, apiInfo, (v: boolean) => !v) }} />
           {/* 🔄 rilegge subito la spesa API, senza aspettare il minuto né riaprire Claude */}
-          <Button key="api-ricarica-dati" label="🔄" onPress={() => { void aggiornaApi($).then(ok => $.ui.toast(ok ? A.aggiornato : A.nonAggiornato)) }} />
+          {/* due frecce bianche sottili, senza sfondo: il disegno con sopra uno strato invisibile che riceve il clic */}
+          {Svg && Client
+            ? <Box key="api-ricarica-dati" position="relative" width={22} height={22}>
+                {disegno(ICONA_RICARICA, A.aggiorna, 22, 22)}
+                <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+                  <Client key="clic-ricarica-api" module="./griglia-clic.tsx" width="100%" height="100%" props={{ dati: { ricaricaApi: 1 } }} />
+                </Box>
+              </Box>
+            : <Button key="api-ricarica-dati" label="↻" plain onPress={() => { void ricaricaApi($) }} />}
         </Box>
         {apApert ? [
           // 1) quanto costa: etichetta corta a sinistra, prezzo a destra, una riga ciascuno
