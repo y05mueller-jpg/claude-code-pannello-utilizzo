@@ -532,7 +532,7 @@ export const register: Register = on => {
           {/* 🔄 rilegge subito la spesa API, senza aspettare il minuto né riaprire Claude */}
           {/* due frecce bianche sottili, senza sfondo: il disegno con sopra uno strato invisibile che riceve il clic */}
           {Svg && Client
-            ? <Box key="api-ricarica-dati" position="relative" width={22} height={22}>
+            ? <Box key="api-ricarica-dati" position="relative" flexShrink={0} flexGrow={0}>
                 {disegno(ICONA_RICARICA, A.aggiorna, 22, 22)}
                 <Box position="absolute" top={0} left={0} right={0} bottom={0}>
                   <Client key="clic-ricarica-api" module="./griglia-clic.tsx" width="100%" height="100%" props={{ dati: { ricaricaApi: 1 } }} />
