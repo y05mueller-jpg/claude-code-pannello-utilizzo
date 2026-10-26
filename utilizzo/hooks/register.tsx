@@ -163,7 +163,7 @@ const T_GIRI = {
   avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
   consigliato: 'consigliato',
   auto: 'Consigliato (automatico)',
-  nota: '✓ = consigliato per costo e produttività. In bianco: la spesa massima per il livello riconosciuto nell’ultima richiesta (giri + revisione finale, prezzi API).',
+  nota: 'Consigliato (automatico) sceglie i giri migliori per costo e produttività. In bianco: la spesa massima per il livello riconosciuto nell’ultima richiesta (giri + revisione finale, prezzi API).',
 }
 // Livello della richiesta con le stesse regole dell'aiutante API (agente.py) e dell'estensione VS Code.
 type Livello = 'leggero' | 'medio' | 'pesante'
@@ -615,7 +615,7 @@ export const register: Register = on => {
     // riconosciuto dall'IA nell'ultima richiesta, in bianco; toccandola si apre il box con le 5 scelte
     const gScelta = await read($, giri), gAperto = await read($, giriAperto)
     const livNow = ((await read($, ultimoLivello)) || 'medio') as Livello
-    const gAttivi = giriEffettivi(gScelta, livNow), consigliato = CONSIGLIATI[livNow]
+    const gAttivi = giriEffettivi(gScelta, livNow)
     const tre = (n: number, attiva: boolean) => (['leggero', 'medio', 'pesante'] as Livello[]).map((l, i) => [
       i ? <Text key={`sep-${n}-${l}`} dimColor> · </Text> : null,
       <Text key={`v-${n}-${l}`} bold={attiva && l === livNow} color={attiva && l === livNow ? '#ffffff' : undefined} dimColor={!(attiva && l === livNow)}>{soldi(tetto(n, l))}</Text>,
@@ -623,7 +623,7 @@ export const register: Register = on => {
     const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n); void update($, giriAperto, () => false) }
     const sezioneGiri = sezione(T_GIRI.titolo,
       <Box key="giri-chiuso" flexDirection="row" justifyContent="space-between" alignItems="center">
-        <Button key="giri-apri" label={`${gAperto ? '▾' : '▸'} ${T_GIRI.nome(gAttivi)}${gAttivi === consigliato ? ' ✓' : ''}`} onPress={() => { void update($, giriAperto, (v: boolean) => !v) }} />
+        <Button key="giri-apri" label={`${T_GIRI.nome(gAttivi)}${gScelta === 0 ? ' (auto)' : ''}`} onPress={() => { void update($, giriAperto, (v: boolean) => !v) }} />
         <Text><Text dimColor>{T_GIRI.livelli[livNow]} </Text><Text bold color="#ffffff">{soldi(tetto(gAttivi, livNow))}</Text></Text>
       </Box>,
       gAperto ? (
@@ -632,7 +632,7 @@ export const register: Register = on => {
           <Button key="giri-auto" label={`${gScelta === 0 ? '● ' : '○ '}${T_GIRI.auto}`} variant={gScelta === 0 ? 'primary' : undefined} onPress={() => scegli(0)} />
           {OPZIONI_GIRI.map(n => (
             <Box key={`giri-${n}`} flexDirection="row" justifyContent="space-between" alignItems="center">
-              <Button key={`giri-scegli-${n}`} label={`${gScelta === n ? '● ' : '○ '}${T_GIRI.nome(n)}${n === consigliato ? ' ✓' : ''}`} variant={gScelta === n ? 'primary' : undefined} onPress={() => scegli(n)} />
+              <Button key={`giri-scegli-${n}`} label={`${gScelta === n ? '● ' : '○ '}${T_GIRI.nome(n)}`} variant={gScelta === n ? 'primary' : undefined} onPress={() => scegli(n)} />
               <Text>{tre(n, n === gAttivi)}</Text>
             </Box>
           ))}
