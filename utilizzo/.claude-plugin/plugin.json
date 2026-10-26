@@ -1,1 +1,1 @@
-{ "name": "utilizzo", "version": "0.5.0", "description": "Pannello Utilizzo: limiti, memoria, sessioni, messaggi e token, con grafico giornaliero per mese, altri strumenti (Codex, Gemini, Qwen…) e prezzi API di tutti i fornitori", "types": "./types/index.d.ts" }
+{ "name": "utilizzo", "version": "0.5.1", "description": "Pannello Utilizzo: limiti, memoria, sessioni, messaggi e token, con grafico giornaliero per mese, altri strumenti (Codex, Gemini, Qwen…) e prezzi API di tutti i fornitori", "types": "./types/index.d.ts" }

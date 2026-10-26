@@ -60,7 +60,9 @@ const apiAperto = atom({ plugin: 'utilizzo', key: 'apiAperto' } as const, false)
 // spiegazione dietro l'icona ⓘ accanto a «Ricarica e quanto costa» (chiesta dall'utente il 26.10.2026)
 const apiInfo = atom({ plugin: 'utilizzo', key: 'apiInfo' } as const, false)
 // quanti giri di loop al massimo per richiesta (scelti nel pannello, ricordati tra le chat in $.store)
-const giri = atom({ plugin: 'utilizzo', key: 'giri' } as const, 3)
+const giri = atom({ plugin: 'utilizzo', key: 'giri' } as const, 0)   // 0 = consigliato in automatico
+const giriAperto = atom({ plugin: 'utilizzo', key: 'giriAperto' } as const, false)
+const ultimoLivello = atom({ plugin: 'utilizzo', key: 'ultimoLivello' } as const, 'medio')
 // altri strumenti (Codex, Gemini, Qwen…), quale si guarda ('claude', il loro id o 'tutti') e il riquadro dei prezzi di tutti i fornitori
 const altri = atom({ plugin: 'utilizzo', key: 'altri' } as const, null)
 const strumento = atom({ plugin: 'utilizzo', key: 'strumento' } as const, 'claude')
@@ -159,7 +161,9 @@ const T_GIRI = {
   nome: (n: number) => `${({ 1: 'Rapido', 2: 'Normale', 3: 'Accurato', 5: 'Preciso', 8: 'Massimo' } as Record<number, string>)[n] ?? ''} · ${n} ${n === 1 ? 'giro' : 'giri'}`,
   livelli: { leggero: 'semplice', medio: 'media', pesante: 'difficile' } as Record<string, string>,
   avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
-  nota: 'Spesa massima per richiesta ai prezzi API (giri + revisione finale). Stime: un giro 3D con Opus costa circa 2,5 $.',
+  consigliato: 'consigliato',
+  auto: 'Consigliato (automatico)',
+  nota: '✓ = consigliato per costo e produttività. In bianco: la spesa massima per il livello riconosciuto nell’ultima richiesta (giri + revisione finale, prezzi API).',
 }
 // Livello della richiesta con le stesse regole dell'aiutante API (agente.py) e dell'estensione VS Code.
 type Livello = 'leggero' | 'medio' | 'pesante'
@@ -175,6 +179,9 @@ const COSTO_GIRO: Record<Livello, number> = { leggero: 0.05, medio: 0.4, pesante
 const MODELLO_LIVELLO: Record<Livello, string> = { leggero: 'Haiku', medio: 'Sonnet', pesante: 'Opus' }
 // le 5 scelte: giri massimi per richiesta
 const OPZIONI_GIRI = [1, 2, 3, 5, 8]
+// consigliato per costo e produttività: oltre questi giri ogni giro in più migliora poco e costa di più
+const CONSIGLIATI: Record<Livello, number> = { leggero: 1, medio: 2, pesante: 3 }
+const giriEffettivi = (scelta: number, l: Livello) => (scelta > 0 ? scelta : CONSIGLIATI[l])
 // spesa massima: i giri più la revisione finale (mezzo giro)
 const dollari = (n: number) => `${n.toFixed(2).replace(".", ",")} $`
 const tetto = (g: number, l: Livello) => Math.round((g + 0.5) * COSTO_GIRO[l] * 100) / 100
@@ -314,7 +321,7 @@ async function aggiorna($: any) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const avviata = await next(e)
-    try { const v = Number(await $.store.get('giri')); if (OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta 3 */ }
+    try { const v = Number(await $.store.get('giri')); if (v === 0 || OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta consigliato */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
     try { linguaDa = await rilevaLingua($); T = TESTI[linguaDa] } catch (x) { linguaDa = '' }
     await update($, comprimi, () => '')   // via le scritte rimaste dalle volte prima
@@ -338,7 +345,8 @@ export const register: Register = on => {
     if (e.command) return next(e)
     try {
       const testoPersona = String((e as any).text ?? '')
-      const g = await read($, giri), liv = livelloDi(testoPersona), max = tetto(g, liv)
+      const liv = livelloDi(testoPersona), g = giriEffettivi(await read($, giri), liv), max = tetto(g, liv)
+      if (testoPersona.trim().length > 40) await update($, ultimoLivello, () => liv)
       const contesto: string[] = []
       // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
       if (testoPersona.trim().length > 40) {
@@ -603,17 +611,34 @@ export const register: Register = on => {
       </Box>,
     )
 
-    // giri di loop per richiesta: 5 scelte, ognuna con la spesa massima per richiesta semplice, media e difficile
-    const gScelti = await read($, giri)
+    // giri di loop per richiesta: si vede solo la scelta attiva (di solito quella consigliata) con il costo del livello
+    // riconosciuto dall'IA nell'ultima richiesta, in bianco; toccandola si apre il box con le 5 scelte
+    const gScelta = await read($, giri), gAperto = await read($, giriAperto)
+    const livNow = ((await read($, ultimoLivello)) || 'medio') as Livello
+    const gAttivi = giriEffettivi(gScelta, livNow), consigliato = CONSIGLIATI[livNow]
+    const tre = (n: number, attiva: boolean) => (['leggero', 'medio', 'pesante'] as Livello[]).map((l, i) => [
+      i ? <Text key={`sep-${n}-${l}`} dimColor> · </Text> : null,
+      <Text key={`v-${n}-${l}`} bold={attiva && l === livNow} color={attiva && l === livNow ? '#ffffff' : undefined} dimColor={!(attiva && l === livNow)}>{soldi(tetto(n, l))}</Text>,
+    ])
+    const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n); void update($, giriAperto, () => false) }
     const sezioneGiri = sezione(T_GIRI.titolo,
-      <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>,
-      ...OPZIONI_GIRI.map(n => (
-        <Box key={`giri-${n}`} flexDirection="row" justifyContent="space-between" alignItems="center">
-          <Button key={`giri-scegli-${n}`} label={T_GIRI.nome(n)} variant={n === gScelti ? 'primary' : undefined} onPress={() => { void update($, giri, () => n); void $.store.set('giri', n) }} />
-          <Text bold={n === gScelti} dimColor={n !== gScelti}>{soldi(tetto(n, 'leggero'))} · {soldi(tetto(n, 'medio'))} · {soldi(tetto(n, 'pesante'))}</Text>
+      <Box key="giri-chiuso" flexDirection="row" justifyContent="space-between" alignItems="center">
+        <Button key="giri-apri" label={`${gAperto ? '▾' : '▸'} ${T_GIRI.nome(gAttivi)}${gAttivi === consigliato ? ' ✓' : ''}`} onPress={() => { void update($, giriAperto, (v: boolean) => !v) }} />
+        <Text><Text dimColor>{T_GIRI.livelli[livNow]} </Text><Text bold color="#ffffff">{soldi(tetto(gAttivi, livNow))}</Text></Text>
+      </Box>,
+      gAperto ? (
+        <Box key="giri-box" flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+          <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>
+          <Button key="giri-auto" label={`${gScelta === 0 ? '● ' : '○ '}${T_GIRI.auto}`} variant={gScelta === 0 ? 'primary' : undefined} onPress={() => scegli(0)} />
+          {OPZIONI_GIRI.map(n => (
+            <Box key={`giri-${n}`} flexDirection="row" justifyContent="space-between" alignItems="center">
+              <Button key={`giri-scegli-${n}`} label={`${gScelta === n ? '● ' : '○ '}${T_GIRI.nome(n)}${n === consigliato ? ' ✓' : ''}`} variant={gScelta === n ? 'primary' : undefined} onPress={() => scegli(n)} />
+              <Text>{tre(n, n === gAttivi)}</Text>
+            </Box>
+          ))}
+          <Text dimColor size="caption">{T_GIRI.nota}</Text>
         </Box>
-      )),
-      <Text dimColor size="caption">{T_GIRI.nota}</Text>,
+      ) : null,
     )
 
     const listino = alt?.listino
