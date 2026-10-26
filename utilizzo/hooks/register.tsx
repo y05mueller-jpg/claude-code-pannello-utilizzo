@@ -59,6 +59,8 @@ const api = atom({ plugin: 'utilizzo', key: 'api' } as const, null)
 const apiAperto = atom({ plugin: 'utilizzo', key: 'apiAperto' } as const, false)
 // spiegazione dietro l'icona ⓘ accanto a «Ricarica e quanto costa» (chiesta dall'utente il 26.10.2026)
 const apiInfo = atom({ plugin: 'utilizzo', key: 'apiInfo' } as const, false)
+// quanti giri di loop al massimo per richiesta (scelti nel pannello, ricordati tra le chat in $.store)
+const giri = atom({ plugin: 'utilizzo', key: 'giri' } as const, 3)
 // altri strumenti (Codex, Gemini, Qwen…), quale si guarda ('claude', il loro id o 'tutti') e il riquadro dei prezzi di tutti i fornitori
 const altri = atom({ plugin: 'utilizzo', key: 'altri' } as const, null)
 const strumento = atom({ plugin: 'utilizzo', key: 'strumento' } as const, 'claude')
@@ -149,6 +151,33 @@ const SCELTA_MODELLO = [
   'If a cheaper model fails or the result is weak, redo that piece once with a stronger model. Never downgrade the main conversation or a subagent whose definition fixes its model.',
   'For the API helper (agente.py) pass `--modello auto`: it picks Haiku, Sonnet or Opus by itself.',
 ].join('\n')
+
+// ---- giri di loop e spesa massima per richiesta ----
+const T_GIRI = {
+  titolo: 'Loop per richiesta',
+  colonne: 'semplice · media · difficile',
+  nome: (n: number) => `${({ 1: 'Rapido', 2: 'Normale', 3: 'Accurato', 5: 'Preciso', 8: 'Massimo' } as Record<number, string>)[n] ?? ''} · ${n} ${n === 1 ? 'giro' : 'giri'}`,
+  livelli: { leggero: 'semplice', medio: 'media', pesante: 'difficile' } as Record<string, string>,
+  avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
+  nota: 'Spesa massima per richiesta ai prezzi API (giri + revisione finale). Stime: un giro 3D con Opus costa circa 2,5 $.',
+}
+// Livello della richiesta con le stesse regole dell'aiutante API (agente.py) e dell'estensione VS Code.
+type Livello = 'leggero' | 'medio' | 'pesante'
+const RE_PESANTE = /progett|architettur|design|\b3d\b|blender|render|modell|\bsito\b|siti\b|backend|frontend|app nuova|da zero|refactor|migra|sicurezza|debug difficil|ottimizz|\bplan\b|architect|from scratch|website|security|infrastruttur/i
+const RE_LEGGERO = /\bcerca|\btrova|\belenca|\bleggi|riassum|\bcont(?:a|are|ami)\b|rinomin|tradu|formatt|\blog\b|\bstato\b|\bsearch|\bfind\b|\blist\b|\bread\b|summar|\bcount\b|rename|translat|\bformat\b|\bstatus\b/i
+function livelloDi(t: string): Livello {
+  if (RE_PESANTE.test(t) || t.length > 1500) return 'pesante'
+  if (RE_LEGGERO.test(t) && t.length < 600) return 'leggero'
+  return 'medio'
+}
+// costo stimato di UN giro ai prezzi API (lavoro + controllo); misurato: un giro 3D di Sinnay con Opus ≈ 2,5 $
+const COSTO_GIRO: Record<Livello, number> = { leggero: 0.05, medio: 0.4, pesante: 2.5 }
+const MODELLO_LIVELLO: Record<Livello, string> = { leggero: 'Haiku', medio: 'Sonnet', pesante: 'Opus' }
+// le 5 scelte: giri massimi per richiesta
+const OPZIONI_GIRI = [1, 2, 3, 5, 8]
+// spesa massima: i giri più la revisione finale (mezzo giro)
+const dollari = (n: number) => `${n.toFixed(2).replace(".", ",")} $`
+const tetto = (g: number, l: Livello) => Math.round((g + 0.5) * COSTO_GIRO[l] * 100) / 100
 
 // ---- passaggio automatico ai crediti API ----
 // Dal 90% del piano (5 ore o settimana), se ci sono crediti API non scaduti, la chiave e l'aiutante agente.py,
@@ -285,6 +314,7 @@ async function aggiorna($: any) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const avviata = await next(e)
+    try { const v = Number(await $.store.get('giri')); if (OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta 3 */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
     try { linguaDa = await rilevaLingua($); T = TESTI[linguaDa] } catch (x) { linguaDa = '' }
     await update($, comprimi, () => '')   // via le scritte rimaste dalle volte prima
@@ -307,20 +337,29 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     if (e.command) return next(e)
     try {
+      const testoPersona = String((e as any).text ?? '')
+      const g = await read($, giri), liv = livelloDi(testoPersona), max = tetto(g, liv)
+      const contesto: string[] = []
+      // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
+      if (testoPersona.trim().length > 40) {
+        $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
+        contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro). Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
+      }
       let L = await read($, limiti)
       try { const u = await $.session.usage(); L = (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })) } catch (x) { /* gli ultimi letti */ }
       const ap = await read($, api)
       const p = passaggioApi(L, ap)
-      if (!p.attivo || !ap) return next(e)
-      const budget = Math.max(0.5, Math.min(5, Math.floor(p.rimasto * 100) / 100))
-      const testo = [
-        `[Pannello Utilizzo] Il piano Claude è al ${Math.round(p.piano)}%: dal ${ap.soglia ?? 90}% il lavoro si fa con i crediti API (rimasti circa ${p.rimasto.toFixed(2)} $), non con il piano.`,
-        `Non fare tu il lavoro di questo messaggio: scrivi il compito completo (con tutto il contesto che serve) in un file di testo temporaneo e fallo eseguire all'aiutante API con:`,
-        `python -I "${ap.agente}" --cartella "<cartella del lavoro>" --titolo "<nome breve>" --budget ${budget} --modello auto --file "<file del compito>"`,
-        `Poi riporta alla persona il risultato e il costo che l'aiutante stampa. Usa meno passi possibile: ogni tuo passo consuma ancora il piano.`,
-        `Domande brevi o di una riga puoi risponderle direttamente. Se l'aiutante fallisce per crediti finiti, continua con il piano e dillo.`,
-      ].join('\n')
-      return next({ ...e, context: [...(e.context ?? []), testo] })
+      if (p.attivo && ap) {
+        const budget = Math.max(0.5, Math.min(max || 5, Math.floor(p.rimasto * 100) / 100))
+        contesto.push([
+          `[Pannello Utilizzo] Il piano Claude è al ${Math.round(p.piano)}%: dal ${ap.soglia ?? 90}% il lavoro si fa con i crediti API (rimasti circa ${p.rimasto.toFixed(2)} $), non con il piano.`,
+          `Non fare tu il lavoro di questo messaggio: scrivi il compito completo (con tutto il contesto che serve) in un file di testo temporaneo e fallo eseguire all'aiutante API con:`,
+          `python -I "${ap.agente}" --cartella "<cartella del lavoro>" --titolo "<nome breve>" --budget ${budget} --giri ${g} --modello auto --file "<file del compito>"`,
+          `Poi riporta alla persona il risultato e il costo che l'aiutante stampa. Usa meno passi possibile: ogni tuo passo consuma ancora il piano.`,
+          `Domande brevi o di una riga puoi risponderle direttamente. Se l'aiutante fallisce per crediti finiti, continua con il piano e dillo.`,
+        ].join('\n'))
+      }
+      return contesto.length ? next({ ...e, context: [...(e.context ?? []), ...contesto] }) : next(e)
     } catch (x) { return next(e) }
   })
 
@@ -564,6 +603,19 @@ export const register: Register = on => {
       </Box>,
     )
 
+    // giri di loop per richiesta: 5 scelte, ognuna con la spesa massima per richiesta semplice, media e difficile
+    const gScelti = await read($, giri)
+    const sezioneGiri = sezione(T_GIRI.titolo,
+      <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>,
+      ...OPZIONI_GIRI.map(n => (
+        <Box key={`giri-${n}`} flexDirection="row" justifyContent="space-between" alignItems="center">
+          <Button key={`giri-scegli-${n}`} label={T_GIRI.nome(n)} variant={n === gScelti ? 'primary' : undefined} onPress={() => { void update($, giri, () => n); void $.store.set('giri', n) }} />
+          <Text bold={n === gScelti} dimColor={n !== gScelti}>{soldi(tetto(n, 'leggero'))} · {soldi(tetto(n, 'medio'))} · {soldi(tetto(n, 'pesante'))}</Text>
+        </Box>
+      )),
+      <Text dimColor size="caption">{T_GIRI.nota}</Text>,
+    )
+
     const listino = alt?.listino
     const fornitori = Object.entries(listino?.fornitori ?? {})
     const fScelto = listino?.fornitori[forn] ? forn : fornitori[0]?.[0]
@@ -605,6 +657,7 @@ export const register: Register = on => {
           return <Text size="caption" color={pa.attivo ? '#22c55e' : pa.manca && pa.manca !== 'spento' ? '#f59e0b' : undefined} dimColor={!pa.attivo && !pa.manca}>{testo}</Text>
         })()),
       (ap as any)?.presente ? sezioneApi : null,
+      sezioneGiri,
       sezionePrezzi,
       sezione(T.sezMemoria,
         // comprimere adesso: Claude riassume la chat e libera memoria, senza aspettare il 97%. Chiede conferma.
