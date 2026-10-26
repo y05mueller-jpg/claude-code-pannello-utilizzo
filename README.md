@@ -33,6 +33,8 @@ The section appears only if you create `~/.claude/utilizzo-api/config.json` (sta
 Optionally, any tool of yours can append one line per job to `~/.claude/utilizzo-api/uso.jsonl` (`{ "data", "titolo", "modello", "costo" }`) to show spending.
 The panel never reads or needs an API key and is not connected to any account.
 
+**Automatic switch at 90%.** If that folder also holds a helper `agente.py` (runs a job with the Claude Agent SDK and appends its cost to `uso.jsonl`) and a non-empty `chiave.txt`, then in every chat, once the 5-hour or weekly plan limit reaches 90% (`"soglia_piano"` in `config.json`), each message tells Claude to hand the job to the helper, which pays with the API credits. With no credits left, no key file or no helper, nothing changes and the plan is used. Turn it off with `"passaggio_api": false`. The panel only checks that the key file exists; it never reads it. Claude Code itself cannot change how a chat is billed, so the few steps Claude takes to hand over the job still count on the plan.
+
 ## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
@@ -52,7 +54,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 ### In italiano
 
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
-Se usi anche OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, GLM, MiniMax, opencode, Kilo Code, Cline, Roo Code, Continue o Aider, in alto scegli quale strumento vedere o tutti insieme; c'è anche il riquadro con i prezzi API di tutti i fornitori. Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
+Se usi anche OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, GLM, MiniMax, opencode, Kilo Code, Cline, Roo Code, Continue o Aider, in alto scegli quale strumento vedere o tutti insieme; c'è anche il riquadro con i prezzi API di tutti i fornitori. Con i crediti API configurati, dal 90% del piano ogni chat passa da sola i lavori all'aiutante che usa i crediti API; senza crediti si continua con il piano. Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
 
 Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 

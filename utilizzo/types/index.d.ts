@@ -17,7 +17,12 @@ export type Api = {
   lavori: number
   prezzi: Record<string, Prezzo>
   ricarica: string
+  // passaggio automatico: file della chiave presente (mai letto), percorso dell'aiutante, acceso o spento, soglia del piano in %
+  presente?: boolean
   chiave: boolean
+  agente?: string
+  auto?: boolean
+  soglia?: number
   ultimi: { data: string; titolo: string; modello: string; costo: number; minuti?: number; esito?: string }[]
 }
 

@@ -372,8 +372,12 @@ export type TestiAltri = {
   strumento: string; tutti: string; nessuno: (nomi: string) => string; errore: (nome: string, e: string) => string
   ore: (h: number) => string; settimana: string
   prezzi: (n: number) => string; colonne: string; letto: (q: string) => string; pagina: (f: string) => string; nota: string
+  apiAttivo: (p: number) => string; apiPronto: (s: number) => string; apiChiave: string; apiAgente: string; apiFiniti: string; apiSpento: string
 }
 const altriIt: TestiAltri = {
+  apiAttivo: p => `Piano al ${p}%: i lavori passano ai crediti API`, apiPronto: s => `Dal ${s}% del piano i lavori passano da soli ai crediti API`,
+  apiChiave: 'Passaggio ai crediti API dal 90%: manca il file della chiave (chiave.txt)', apiAgente: 'Passaggio ai crediti API dal 90%: manca l’aiutante agente.py',
+  apiFiniti: 'Crediti API finiti o scaduti: si continua con il piano', apiSpento: 'Passaggio automatico ai crediti API spento',
   strumento: 'Strumento', tutti: 'Tutti',
   nessuno: n => `Altri strumenti: nessuno trovato su questo PC. Compaiono qui da soli appena li usi: ${n}.`,
   errore: (n, e) => `${n}: non riesco a contarlo (${e})`,
@@ -383,6 +387,9 @@ const altriIt: TestiAltri = {
   nota: 'Il costo vero dipende anche dalla memoria riletta (cache), che costa molto meno.',
 }
 const altriEn: TestiAltri = {
+  apiAttivo: p => `Plan at ${p}%: jobs now use API credits`, apiPronto: s => `From ${s}% of the plan, jobs switch to API credits by themselves`,
+  apiChiave: 'Switch to API credits at 90%: the key file (chiave.txt) is missing', apiAgente: 'Switch to API credits at 90%: the agente.py helper is missing',
+  apiFiniti: 'API credits used up or expired: the plan is used', apiSpento: 'Automatic switch to API credits is off',
   strumento: 'Tool', tutti: 'All',
   nessuno: n => `Other tools: none found on this computer. They show up here by themselves as soon as you use them: ${n}.`,
   errore: (n, e) => `${n}: cannot count it (${e})`,
@@ -392,6 +399,9 @@ const altriEn: TestiAltri = {
   nota: 'The real cost also depends on re-read memory (cache), which costs much less.',
 }
 const altriDe: TestiAltri = {
+  apiAttivo: p => `Plan bei ${p}%: Aufgaben laufen jetzt über API-Guthaben`, apiPronto: s => `Ab ${s}% des Plans laufen Aufgaben von selbst über API-Guthaben`,
+  apiChiave: 'Wechsel zu API-Guthaben ab 90%: die Schlüsseldatei (chiave.txt) fehlt', apiAgente: 'Wechsel zu API-Guthaben ab 90%: der Helfer agente.py fehlt',
+  apiFiniti: 'API-Guthaben aufgebraucht oder abgelaufen: der Plan wird genutzt', apiSpento: 'Automatischer Wechsel zu API-Guthaben ist aus',
   strumento: 'Werkzeug', tutti: 'Alle',
   nessuno: n => `Andere Werkzeuge: keine auf diesem Computer gefunden. Sie erscheinen hier von selbst, sobald du sie benutzt: ${n}.`,
   errore: (n, e) => `${n}: kann nicht gezählt werden (${e})`,
@@ -401,6 +411,9 @@ const altriDe: TestiAltri = {
   nota: 'Die echten Kosten hängen auch vom wiedergelesenen Speicher (Cache) ab, der viel weniger kostet.',
 }
 const altriFr: TestiAltri = {
+  apiAttivo: p => `Forfait à ${p} % : les tâches passent aux crédits API`, apiPronto: s => `Dès ${s} % du forfait, les tâches passent seules aux crédits API`,
+  apiChiave: 'Passage aux crédits API à 90 % : le fichier de clé (chiave.txt) manque', apiAgente: 'Passage aux crédits API à 90 % : l’assistant agente.py manque',
+  apiFiniti: 'Crédits API épuisés ou expirés : le forfait est utilisé', apiSpento: 'Passage automatique aux crédits API désactivé',
   strumento: 'Outil', tutti: 'Tous',
   nessuno: n => `Autres outils : aucun trouvé sur cet ordinateur. Ils apparaissent ici tout seuls dès que tu les utilises : ${n}.`,
   errore: (n, e) => `${n} : impossible de le compter (${e})`,
@@ -410,6 +423,9 @@ const altriFr: TestiAltri = {
   nota: 'Le coût réel dépend aussi de la mémoire relue (cache), qui coûte beaucoup moins.',
 }
 const altriEs: TestiAltri = {
+  apiAttivo: p => `Plan al ${p}%: las tareas pasan a los créditos API`, apiPronto: s => `Desde el ${s}% del plan, las tareas pasan solas a los créditos API`,
+  apiChiave: 'Cambio a créditos API al 90%: falta el archivo de la clave (chiave.txt)', apiAgente: 'Cambio a créditos API al 90%: falta el ayudante agente.py',
+  apiFiniti: 'Créditos API agotados o caducados: se usa el plan', apiSpento: 'Cambio automático a créditos API desactivado',
   strumento: 'Herramienta', tutti: 'Todas',
   nessuno: n => `Otras herramientas: ninguna en este ordenador. Aparecen aquí solas en cuanto las uses: ${n}.`,
   errore: (n, e) => `${n}: no se puede contar (${e})`,
