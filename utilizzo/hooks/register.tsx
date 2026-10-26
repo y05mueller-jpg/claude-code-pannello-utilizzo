@@ -216,6 +216,14 @@ function controllaPannello($: any) {
     })()
   })
 }
+// rilegge solo crediti e spesa API (registro dei lavori): veloce, usata anche dal tasto 🔄
+async function aggiornaApi($: any): Promise<boolean> {
+  try {
+    const ra = await $.process.run(['node', '-e', API_JS], { timeoutMs: 20000 })
+    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Api; await update($, api, () => x); return true }
+  } catch (e) { /* la sezione API resta com'era */ }
+  return false
+}
 async function aggiorna($: any) {
   controllaPannello($)
   if (!linguaDa) {
@@ -233,10 +241,7 @@ async function aggiorna($: any) {
     const [id, turni, modello] = await Promise.all([$.session.id(), $.session.turns(), $.session.model()])
     await update($, memoria, () => ({ tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, categorie, id, inizio: u.startedAt, turni, modello }))
   } catch (e) { /* i limiti arrivano con la prossima risposta */ }
-  try {
-    const ra = await $.process.run(['node', '-e', API_JS], { timeoutMs: 20000 })
-    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Api; await update($, api, () => x) }
-  } catch (e) { /* la sezione API resta com'era */ }
+  await aggiornaApi($)
   if (inCorso) return
   inCorso = true
   try {
@@ -483,6 +488,8 @@ export const register: Register = on => {
         <Box flexDirection="row" alignItems="center" gap={1}>
           <Button key="api-ricarica" label={`${apApert ? '▾' : '▸'} ${A.apriRicarica}`} onPress={() => { void update($, apiAperto, (v: boolean) => !v) }} />
           <Button key="api-info" label="ⓘ" variant={apInfo ? 'primary' : undefined} onPress={() => { void update($, apiInfo, (v: boolean) => !v) }} />
+          {/* 🔄 rilegge subito la spesa API, senza aspettare il minuto né riaprire Claude */}
+          <Button key="api-ricarica-dati" label="🔄" onPress={() => { void aggiornaApi($).then(ok => $.ui.toast(ok ? A.aggiornato : A.nonAggiornato)) }} />
         </Box>
         {apApert ? [
           // 1) quanto costa: etichetta corta a sinistra, prezzo a destra, una riga ciascuno
