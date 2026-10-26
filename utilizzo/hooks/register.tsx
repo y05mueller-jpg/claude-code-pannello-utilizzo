@@ -621,13 +621,15 @@ export const register: Register = on => {
       <Text key={`v-${n}-${l}`} bold={attiva && l === livNow} color={attiva && l === livNow ? '#ffffff' : undefined} dimColor={!(attiva && l === livNow)}>{soldi(tetto(n, l))}</Text>,
     ])
     const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n); void update($, giriAperto, () => false) }
+    // stesso riquadro con il bordo di «Ricarica e quanto costa» e «Prezzi API», così i pulsanti sono allineati
     const sezioneGiri = sezione(T_GIRI.titolo,
+      <Box key="giri-riquadro" flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
       <Box key="giri-chiuso" flexDirection="row" justifyContent="space-between" alignItems="center">
         <Button key="giri-apri" label={`${T_GIRI.nome(gAttivi)}${gScelta === 0 ? ' (auto)' : ''}`} onPress={() => { void update($, giriAperto, (v: boolean) => !v) }} />
         <Text><Text dimColor>{T_GIRI.livelli[livNow]} </Text><Text bold color="#ffffff">{soldi(tetto(gAttivi, livNow))}</Text></Text>
       </Box>,
       gAperto ? (
-        <Box key="giri-box" flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+        <Box key="giri-box" flexDirection="column" gap={0} marginTop={1}>
           <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>
           <Button key="giri-auto" label={`${gScelta === 0 ? '● ' : '○ '}${T_GIRI.auto}`} variant={gScelta === 0 ? 'primary' : undefined} onPress={() => scegli(0)} />
           {OPZIONI_GIRI.map(n => (
@@ -639,6 +641,7 @@ export const register: Register = on => {
           <Text dimColor size="caption">{T_GIRI.nota}</Text>
         </Box>
       ) : null,
+      </Box>,
     )
 
     const listino = alt?.listino
