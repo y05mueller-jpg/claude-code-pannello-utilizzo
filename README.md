@@ -11,6 +11,9 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
 - **API credits**: credit left with a bar, and a **Top up and what it costs** box (cost per kind of job, model prices, how to top up). Behind the small **ⓘ** icon: expiry date, jobs done with the API, and what this chat, today and this month would cost at API prices (Opus 5.5)
 
+- **Other tools**: if you also use OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue or Aider, a selector lets you see each one or all together (Codex limits included)
+- **API prices of all providers**: Anthropic, OpenAI, Google, DeepSeek, Alibaba, Moonshot, Z.ai, MiniMax and xAI, with a link to each official pricing page
+
 Everything is counted locally from `~/.claude/projects` (numbers only, no message text). Nothing is sent anywhere.
 The interface follows the language set in Claude Code, or else the computer's language: English, Italian, German, French and Spanish (other languages fall back to English).
 
@@ -49,7 +52,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 ### In italiano
 
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
-Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
+Se usi anche OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, GLM, MiniMax, opencode, Kilo Code, Cline, Roo Code, Continue o Aider, in alto scegli quale strumento vedere o tutti insieme; c'è anche il riquadro con i prezzi API di tutti i fornitori. Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
 
 Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 
