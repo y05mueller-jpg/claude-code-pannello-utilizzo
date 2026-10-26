@@ -63,6 +63,11 @@ const apiInfo = atom({ plugin: 'utilizzo', key: 'apiInfo' } as const, false)
 const giri = atom({ plugin: 'utilizzo', key: 'giri' } as const, 0)   // 0 = consigliato in automatico
 const giriAperto = atom({ plugin: 'utilizzo', key: 'giriAperto' } as const, false)
 const ultimoLivello = atom({ plugin: 'utilizzo', key: 'ultimoLivello' } as const, 'medio')
+// costo effettivo delle ultime richieste (dal costo della sessione ai prezzi API, come /cost), ricordate tra le chat
+type Richiesta = { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }
+const richieste = atom({ plugin: 'utilizzo', key: 'richieste' } as const, [] as Richiesta[])
+let usdInizio = -1   // costo della sessione quando è partita la richiesta in corso
+const usdOra = async ($: any): Promise<number> => { try { return Number((await $.session.usage()).cost?.usd ?? 0) } catch (x) { return 0 } }
 // altri strumenti (Codex, Gemini, Qwen…), quale si guarda ('claude', il loro id o 'tutti') e il riquadro dei prezzi di tutti i fornitori
 const altri = atom({ plugin: 'utilizzo', key: 'altri' } as const, null)
 const strumento = atom({ plugin: 'utilizzo', key: 'strumento' } as const, 'claude')
@@ -163,6 +168,10 @@ const T_GIRI = {
   avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
   consigliato: 'consigliato',
   auto: 'Consigliato (automatico)',
+  costoEffettivo: 'Costo effettivo',
+  inCorso: 'in corso… ',
+  nessuna: 'Nessuna richiesta ancora',
+  totale: (n: number, t: string) => `Ultime ${n} richieste: ${t} in tutto (prezzi API)`,
   nota: 'Consigliato (automatico) sceglie i giri migliori per costo e produttività. In bianco: la spesa massima per il livello riconosciuto nell’ultima richiesta (giri + revisione finale, prezzi API).',
 }
 // Livello della richiesta con le stesse regole dell'aiutante API (agente.py) e dell'estensione VS Code.
@@ -283,6 +292,7 @@ async function aggiornaApi($: any): Promise<boolean> {
 }
 async function aggiorna($: any) {
   controllaPannello($)
+  if (usdInizio >= 0) { const c = Math.max(0, (await usdOra($)) - usdInizio); await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo: c } : x))) }
   if (!linguaDa) {
     void update($, menu, () => '')   // una volta per caricamento: nessun menu rimasto aperto da prima
     const l = await rilevaLingua($)
@@ -321,6 +331,7 @@ async function aggiorna($: any) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const avviata = await next(e)
+    try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
     try { const v = Number(await $.store.get('giri')); if (v === 0 || OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta consigliato */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
     try { linguaDa = await rilevaLingua($); T = TESTI[linguaDa] } catch (x) { linguaDa = '' }
@@ -347,6 +358,8 @@ export const register: Register = on => {
       const testoPersona = String((e as any).text ?? '')
       const liv = livelloDi(testoPersona), g = giriEffettivi(await read($, giri), liv), max = tetto(g, liv)
       if (testoPersona.trim().length > 40) await update($, ultimoLivello, () => liv)
+      usdInizio = await usdOra($)
+      await update($, richieste, (v: Richiesta[]) => [{ ora: Date.now(), liv, stima: max, costo: 0, inCorso: true }, ...(v ?? []).filter(x => !x.inCorso)].slice(0, 15))
       const contesto: string[] = []
       // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
       if (testoPersona.trim().length > 40) {
@@ -387,6 +400,12 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
     if (e.agentId !== undefined) return r
+    if (usdInizio >= 0) {
+      const costo = Math.max(0, (await usdOra($)) - usdInizio)
+      usdInizio = -1
+      await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo, inCorso: false } : x)))
+      try { await $.store.set('richieste', (await read($, richieste)).filter(x => !x.inCorso)) } catch (x) { /* resta solo in questa chat */ }
+    }
     void aggiorna($)
     // compressione automatica al 40%: solo a fine risposta, al massimo una volta ogni 5 minuti
     try {
@@ -611,36 +630,33 @@ export const register: Register = on => {
       </Box>,
     )
 
-    // giri di loop per richiesta: si vede solo la scelta attiva (di solito quella consigliata) con il costo del livello
-    // riconosciuto dall'IA nell'ultima richiesta, in bianco; toccandola si apre il box con le 5 scelte
-    const gScelta = await read($, giri), gAperto = await read($, giriAperto)
+    // giri di loop per richiesta: un menu a scelta multipla (consigliato o una delle 5 scelte, con i costi),
+    // e sotto un secondo menu, solo da guardare, con il costo effettivo delle ultime richieste
+    const gScelta = await read($, giri)
     const livNow = ((await read($, ultimoLivello)) || 'medio') as Livello
     const gAttivi = giriEffettivi(gScelta, livNow)
-    const tre = (n: number, attiva: boolean) => (['leggero', 'medio', 'pesante'] as Livello[]).map((l, i) => [
-      i ? <Text key={`sep-${n}-${l}`} dimColor> · </Text> : null,
-      <Text key={`v-${n}-${l}`} bold={attiva && l === livNow} color={attiva && l === livNow ? '#ffffff' : undefined} dimColor={!(attiva && l === livNow)}>{soldi(tetto(n, l))}</Text>,
-    ])
-    const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n); void update($, giriAperto, () => false) }
-    // stesso riquadro con il bordo di «Ricarica e quanto costa» e «Prezzi API», così i pulsanti sono allineati
+    const rich = (await read($, richieste)) ?? []
+    const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n) }
+    const tre = (n: number) => `${soldi(tetto(n, 'leggero'))} · ${soldi(tetto(n, 'medio'))} · ${soldi(tetto(n, 'pesante'))}`
+    const opzGiri = [
+      { value: '0', label: `${T_GIRI.nome(CONSIGLIATI[livNow])} (auto) · ${T_GIRI.livelli[livNow]} ${soldi(tetto(CONSIGLIATI[livNow], livNow))}` },
+      ...OPZIONI_GIRI.map(n => ({ value: String(n), label: `${T_GIRI.nome(n)} · ${tre(n)}` })),
+    ]
+    const ora2 = (t: number) => { const d0 = new Date(t); return `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}` }
+    const opzCosti = rich.length
+      ? rich.map((x, i) => ({ value: String(i), label: `${ora2(x.ora)} · ${T_GIRI.livelli[x.liv] ?? x.liv} · ${x.inCorso ? T_GIRI.inCorso : ''}${soldi(x.costo)}` }))
+      : [{ value: '0', label: T_GIRI.nessuna }]
+    const totale = rich.filter(x => !x.inCorso).reduce((t, x) => t + x.costo, 0)
     const sezioneGiri = sezione(T_GIRI.titolo,
       <Box key="giri-riquadro" flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
-      <Box key="giri-chiuso" flexDirection="row" justifyContent="space-between" alignItems="center">
-        <Button key="giri-apri" label={`${T_GIRI.nome(gAttivi)}${gScelta === 0 ? ' (auto)' : ''}`} onPress={() => { void update($, giriAperto, (v: boolean) => !v) }} />
-        <Text><Text dimColor>{T_GIRI.livelli[livNow]} </Text><Text bold color="#ffffff">{soldi(tetto(gAttivi, livNow))}</Text></Text>
-      </Box>,
-      gAperto ? (
-        <Box key="giri-box" flexDirection="column" gap={0} marginTop={1}>
-          <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>
-          <Button key="giri-auto" label={`${gScelta === 0 ? '● ' : '○ '}${T_GIRI.auto}`} variant={gScelta === 0 ? 'primary' : undefined} onPress={() => scegli(0)} />
-          {OPZIONI_GIRI.map(n => (
-            <Box key={`giri-${n}`} flexDirection="row" justifyContent="space-between" alignItems="center">
-              <Button key={`giri-scegli-${n}`} label={`${gScelta === n ? '● ' : '○ '}${T_GIRI.nome(n)}`} variant={gScelta === n ? 'primary' : undefined} onPress={() => scegli(n)} />
-              <Text>{tre(n, n === gAttivi)}</Text>
-            </Box>
-          ))}
-          <Text dimColor size="caption">{T_GIRI.nota}</Text>
-        </Box>
-      ) : null,
+        {Select
+          ? <Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} />
+          : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
+        <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>
+        {Select
+          ? <Select key="giri-costi" label={T_GIRI.costoEffettivo} options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
+          : <Text>{opzCosti[0]?.label}</Text>}
+        {rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null}
       </Box>,
     )
 
