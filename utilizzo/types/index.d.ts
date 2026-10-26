@@ -23,7 +23,11 @@ export type Api = {
   agente?: string
   auto?: boolean
   soglia?: number
-  ultimi: { data: string; titolo: string; modello: string; costo: number; minuti?: number; esito?: string }[]
+  // scelta automatica del modello: accesa o spenta, lavori e spesa per modello, risparmio stimato rispetto al modello di punta
+  scelta?: boolean
+  perModello?: Record<string, { lavori: number; costo: number }>
+  risparmio?: number
+  ultimi: { data: string; titolo: string; modello: string; costo: number; minuti?: number; esito?: string; livello?: string }[]
 }
 
 // altri strumenti (strumenti/altri.js): i loro numeri nella stessa forma di Dati, i limiti di Codex e i prezzi di tutti i fornitori
