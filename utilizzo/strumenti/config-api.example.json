@@ -1,0 +1,31 @@
+{
+  "crediti": [
+    {
+      "dollari": 5,
+      "arrivo": "2026-01-01",
+      "scadenza": "2027-01-01",
+      "nota": "example"
+    }
+  ],
+  "prezzi_per_milione": {
+    "claude-opus-5-5": {
+      "entrata": 4,
+      "uscita": 20,
+      "cache_scritta": 8,
+      "cache_letta": 0.2
+    },
+    "claude-sonnet-5-5": {
+      "entrata": 2,
+      "uscita": 10,
+      "cache_scritta": 4,
+      "cache_letta": 0.2
+    },
+    "claude-haiku-5-5": {
+      "entrata": 0.1,
+      "uscita": 0.5,
+      "cache_scritta": 0.2,
+      "cache_letta": 0.01
+    }
+  },
+  "ricarica": "https://console.anthropic.com/settings/billing"
+}

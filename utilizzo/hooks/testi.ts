@@ -283,3 +283,80 @@ const es: Testi = {
 }
 
 export const TESTI: Record<Lingua, Testi> = { it, en, de, fr, es }
+
+// ---- sezione «Crediti API» ----
+export type TestiApi = {
+  sez: string; rimasti: (r: string, tot: string) => string; scade: (q: string, giorni: number) => string; scaduto: (q: string) => string
+  nessunCredito: string; lavori: (n: number, speso: string) => string
+  questaChat: (c: string) => string; oggiMese: (o: string, m: string) => string; stima: string
+  apriRicarica: string; costiTitolo: string; costi: [string, string][]; prezzi: (mod: string, e: string, u: string, l: string) => string
+  comeRicaricare: string; vaiConsole: string; senzaChiave: string; ultimi: string; nonClaudeCode: string
+  conCento: string; esempiCento: string[]; prezziTitolo: string; colonne: string; nomeModello: Record<string, string>; ricaricaTitolo: string; passi: string[]
+}
+const apiIt: TestiApi = {
+  sez: 'Crediti API',
+  rimasti: (r, tot) => `Rimasti ${r} di ${tot}`,
+  scade: (q, g) => `Scade ${q} (tra ${g} ${g === 1 ? 'giorno' : 'giorni'})`,
+  scaduto: q => `Scaduto ${q}`,
+  nessunCredito: 'Nessun credito API attivo.',
+  lavori: (n, s) => `Lavori fatti con l'API: ${n} · spesi ${s}`,
+  questaChat: c => `Questa chat, se pagata con l'API: circa ${c}`,
+  oggiMese: (o, m) => `Oggi circa ${o} · questo mese circa ${m}`,
+  stima: 'I costi sono stime con i prezzi di Opus 5.5. La memoria riletta (cache) costa molto meno: 0,20 $ per milione di token.',
+  apriRicarica: 'Ricarica e quanto costa',
+  costiTitolo: 'Quanto costa un lavoro',
+  costi: [
+    ['Domanda breve', '0,02–0,10 $'],
+    ['Correggere un file', '0,20–1 $'],
+    ['Pagina o app piccola', '1–5 $'],
+    ['Lavoro lungo con agente', '3–15 $'],
+    ['Giornata intensa', '20–100+ $'],
+  ],
+  conCento: 'Con 100 $ fai circa:',
+  esempiCento: ['1000 domande brevi', 'oppure 10 lavori lunghi', 'oppure 1–3 giornate intense'],
+  prezziTitolo: 'Prezzo per 1 milione di token',
+  colonne: 'entrata · uscita',
+  nomeModello: { 'claude-opus-5-5': 'Opus 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-haiku-5-5': 'Haiku 5.5' },
+  ricaricaTitolo: 'Come ricaricare',
+  passi: ['Apri la console (link sotto)', 'Billing → Add credits', 'Imposta un limite di spesa mensile'],
+  prezzi: (m, e, u, l) => `${m}: ${e} $ entrata · ${u} $ uscita · ${l} $ riletti, per milione di token`,
+  comeRicaricare: 'Per ricaricare: console → Billing → Add credits. Imposta anche un limite di spesa mensile, così non paghi mai più di quanto vuoi.',
+  vaiConsole: 'Apri la console per ricaricare',
+  senzaChiave: '',
+  ultimi: 'Ultimi lavori',
+  nonClaudeCode: "I crediti API valgono per l'API, non per Claude Code con un piano.",
+}
+const apiEn: TestiApi = {
+  sez: 'API credits',
+  rimasti: (r, tot) => `${r} left of ${tot}`,
+  scade: (q, g) => `Expires ${q} (in ${g} ${g === 1 ? 'day' : 'days'})`,
+  scaduto: q => `Expired ${q}`,
+  nessunCredito: 'No active API credit.',
+  lavori: (n, s) => `Jobs done with the API: ${n} · spent ${s}`,
+  questaChat: c => `This chat, if paid with the API: about ${c}`,
+  oggiMese: (o, m) => `Today about ${o} · this month about ${m}`,
+  stima: 'Estimate at Opus 5.5 prices: input, output and re-read memory (cache) counted separately.',
+  apriRicarica: 'Top up and what it costs',
+  costiTitolo: 'What a job costs',
+  costi: [
+    ['Short question', '$0.02–0.10'],
+    ['Fix a file', '$0.20–1'],
+    ['Small page or app', '$1–5'],
+    ['Long agent job', '$3–15'],
+    ['Heavy day', '$20–100+'],
+  ],
+  conCento: 'With $100 you get about:',
+  esempiCento: ['1000 short questions', 'or 10 long jobs', 'or 1–3 heavy days'],
+  prezziTitolo: 'Price per 1 million tokens',
+  colonne: 'input · output',
+  nomeModello: { 'claude-opus-5-5': 'Opus 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-haiku-5-5': 'Haiku 5.5' },
+  ricaricaTitolo: 'How to top up',
+  passi: ['Open the console (link below)', 'Billing → Add credits', 'Set a monthly spend limit'],
+  prezzi: (m, e, u, l) => `${m}: $${e} input · $${u} output · $${l} re-read, per million tokens`,
+  comeRicaricare: 'To top up: console → Billing → Add credits. Also set a monthly spend limit.',
+  vaiConsole: 'Open the console to top up',
+  senzaChiave: '',
+  ultimi: 'Latest jobs',
+  nonClaudeCode: 'API credits work for the API, not for Claude Code on a plan.',
+}
+export const TESTI_API: Record<Lingua, TestiApi> = { it: apiIt, en: apiEn, de: apiEn, fr: apiEn, es: apiEn }

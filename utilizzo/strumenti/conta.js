@@ -114,7 +114,7 @@ for (const [id, s] of Object.entries(cache.sessioni)) {
   const attivita = Math.max(s.ultimo, ultimoFile[id] || 0);
   const stato = ora - attivita < 120000 ? 'al lavoro' : s.bloccata ? 'bloccata' : 'ferma';
   sessioni.push({ id, titolo: s.titolo || s.primoTesto || 'Senza titolo', progetto: s.progetto.replace(/^C--Users-[^-]+-(Documents-)?/, '').replace(/-/g, ' '),
-    messaggi: s.messaggi, richieste: s.richieste, token: s.token, ultimo: attivita, stato, mesi: perMese(s.giorni), giorni: Object.fromEntries(Object.entries(s.giorni).map(([k, v]) => [k, [v[0] || 0, v[1] || 0, v[2] || 0]])) });
+    messaggi: s.messaggi, richieste: s.richieste, token: s.token, u: [s.input || 0, s.output || 0, s.cacheScritta || 0, s.cacheLetta || 0], ultimo: attivita, stato, mesi: perMese(s.giorni), giorni: Object.fromEntries(Object.entries(s.giorni).map(([k, v]) => [k, [v[0] || 0, v[1] || 0, v[2] || 0]])) });
 }
 sessioni.sort((a, b) => b.ultimo - a.ultimo);
 process.stdout.write(JSON.stringify({ aggiornato: ora, totali, sessioni, giorni }));

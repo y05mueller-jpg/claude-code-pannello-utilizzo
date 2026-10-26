@@ -4,8 +4,8 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Dati, Limite, Memoria, Scelta } from '../types'
-import { TESTI, codiceLingua, linguaNota, type Lingua } from './testi'
+import type { Api, Dati, Limite, Memoria, Prezzo, Scelta } from '../types'
+import { TESTI, TESTI_API, codiceLingua, linguaNota, type Lingua } from './testi'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -30,7 +30,9 @@ const PANNELLO = 'utilizzo'
 const SOGLIA = 40
 let senzaClic = false
 // il contatore (strumenti/conta.js) viaggia dentro il modulo e gira con `node -e`: così funziona in qualsiasi cartella
-const CONTA_JS = "// Conta messaggi e token di tutte le conversazioni di Claude Code salvate su questo PC (~/.claude/projects).\n// Legge solo i numeri: messaggi dell'utente, token di ogni risposta, data e titolo della chat. Nessun testo esce da qui.\n// Legge ogni file una volta sola e poi solo le righe nuove (cache in ~/.claude/utilizzo-cache.json).\n// Uscita (stdout): JSON { aggiornato, totali, sessioni: [...], giorni: { \"2026-10-23\": { token, messaggi } } }\n'use strict';\nconst fs = require('fs'), path = require('path'), os = require('os');\nconst RADICE = path.join(os.homedir(), '.claude', 'projects');\nconst CACHE = path.join(os.homedir(), '.claude', 'utilizzo-cache.json');\nconst VERSIONE = 5;   // 5: anche i token scritti dalla persona (stima dalla lunghezza dei suoi messaggi)\n\nlet cache = { v: VERSIONE, file: {}, sessioni: {} };\ntry { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.v === VERSIONE) cache = c; } catch (e) {}\n\nfunction fileJsonl(dir, out = []) {\n  let voci; try { voci = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }\n  for (const v of voci) {\n    const p = path.join(dir, v.name);\n    if (v.isDirectory()) fileJsonl(p, out);\n    else if (v.name.endsWith('.jsonl')) out.push(p);\n  }\n  return out;\n}\nconst giorno = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };\nfunction sessione(id) {\n  return cache.sessioni[id] || (cache.sessioni[id] = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, titolo: '', progetto: '', primo: 0, ultimo: 0, giorni: {}, bloccata: false });\n}\n// un messaggio scritto dalla persona (non i risultati degli strumenti, non gli avvisi del sistema)\nfunction testoUtente(m) {\n  if (!m || m.role !== 'user') return null;\n  if (typeof m.content === 'string') return m.content;\n  if (!Array.isArray(m.content) || m.content.some(b => b && b.type === 'tool_result')) return null;\n  const t = m.content.find(b => b && b.type === 'text');\n  return t ? t.text : null;\n}\n\nfunction leggiRighe(file, da) {\n  const fd = fs.openSync(file, 'r'), dim = fs.fstatSync(fd).size, pezzi = [];\n  let pos = da;\n  const buf = Buffer.alloc(4 * 1024 * 1024);\n  while (pos < dim) { const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos); if (!n) break; pezzi.push(Buffer.from(buf.subarray(0, n))); pos += n; }\n  fs.closeSync(fd);\n  const tutto = Buffer.concat(pezzi), fine = tutto.lastIndexOf(10);   // solo righe complete\n  if (fine < 0) return { righe: [], nuovoInizio: da };\n  return { righe: tutto.subarray(0, fine).toString('utf8').split('\\n'), nuovoInizio: da + fine + 1 };\n}\n\nconst ora = Date.now(), visti = new Set();\nfor (const file of fileJsonl(RADICE)) {\n  visti.add(file);\n  let st; try { st = fs.statSync(file); } catch (e) { continue; }\n  const f = cache.file[file] || (cache.file[file] = { inizio: 0, richieste: [], mtime: 0 });\n  f.mtime = st.mtimeMs;\n  if (st.size < f.inizio) { f.inizio = 0; f.richieste = []; }   // file riscritto: si ricomincia\n  if (st.size === f.inizio) continue;\n  const secondario = file.includes(`${path.sep}subagents${path.sep}`);\n  const giaContate = new Set(f.richieste);\n  const { righe, nuovoInizio } = leggiRighe(file, f.inizio);\n  for (const r of righe) {\n    if (!r) continue;\n    let j; try { j = JSON.parse(r); } catch (e) { continue; }\n    if (!j.sessionId) continue;\n    const s = sessione(j.sessionId);\n    if (!s.progetto) s.progetto = path.basename(secondario ? path.dirname(path.dirname(path.dirname(file))) : path.dirname(file));\n    if (j.type === 'custom-title' && j.customTitle) { s.titolo = j.customTitle; continue; }\n    const ts = j.timestamp ? Date.parse(j.timestamp) : NaN;\n    if (!isNaN(ts)) { if (!s.primo || ts < s.primo) s.primo = ts; if (ts > s.ultimo) s.ultimo = ts; }\n    if (j.type === 'assistant' && j.message && j.message.usage) {\n      const id = j.requestId || j.message.id;\n      if (id && giaContate.has(id)) continue;   // la stessa risposta \u00e8 scritta su pi\u00f9 righe\n      if (id) { giaContate.add(id); f.richieste.push(id); }\n      const u = j.message.usage, tot = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);\n      s.richieste++; s.token += tot; s.input += u.input_tokens || 0; s.output += u.output_tokens || 0;\n      s.cacheScritta += u.cache_creation_input_tokens || 0; s.cacheLetta += u.cache_read_input_tokens || 0;\n      if (!isNaN(ts)) {\n        const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0]);\n        g[0] += tot; g[2] = (g[2] || 0) + 1; g[3] = (g[3] || 0) + (u.input_tokens || 0); g[4] = (g[4] || 0) + (u.output_tokens || 0);\n        g[5] = (g[5] || 0) + (u.cache_creation_input_tokens || 0); g[6] = (g[6] || 0) + (u.cache_read_input_tokens || 0);\n      }\n      s.bloccata = false;\n      if (f.richieste.length > 50000) f.richieste = f.richieste.slice(-20000);\n    } else if (j.type === 'assistant' && j.isApiErrorMessage) {\n      const t = JSON.stringify(j.message || '').toLowerCase();\n      s.bloccata = /limit|limite|quota|rate/.test(t);\n    } else if (!secondario && j.type === 'user' && !j.isMeta && !j.isCompactSummary) {\n      const t = testoUtente(j.message);\n      if (t == null || /^\\s*</.test(t)) continue;   // avvisi e comandi interni, non messaggi della persona\n      s.messaggi++;\n      const stima = Math.ceil(t.length / 4);   // ~4 caratteri per token: si conta solo la lunghezza, il testo non si salva\n      s.scritti = (s.scritti || 0) + stima;\n      if (!s.titolo && !s.primoTesto) s.primoTesto = t.replace(/\\s+/g, ' ').slice(0, 60);\n      if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0, 0]); g[1]++; g[7] = (g[7] || 0) + stima; }\n    }\n  }\n  f.inizio = nuovoInizio;\n}\nfor (const k of Object.keys(cache.file)) if (!visti.has(k)) delete cache.file[k];\ntry { fs.writeFileSync(CACHE, JSON.stringify(cache)); } catch (e) {}\n\n// ---- riepilogo ----\nconst ultimoFile = {};\nfor (const [p, f] of Object.entries(cache.file)) { const id = path.basename(p, '.jsonl'); ultimoFile[id] = Math.max(ultimoFile[id] || 0, f.mtime); }\n// per ogni mese \"2026-10\": [token, messaggi, richieste] della chat\nfunction perMese(g) { const m = {}; for (const [k, v] of Object.entries(g)) { const x = m[k.slice(0, 7)] || (m[k.slice(0, 7)] = [0, 0, 0]); x[0] += v[0] || 0; x[1] += v[1] || 0; x[2] += v[2] || 0; } return m; }\nconst totali = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, sessioni: 0 };\nconst giorni = {}, sessioni = [];\nfor (const [id, s] of Object.entries(cache.sessioni)) {\n  if (!s.richieste && !s.messaggi) continue;\n  for (const k of ['messaggi', 'richieste', 'token', 'input', 'output', 'cacheScritta', 'cacheLetta', 'scritti']) totali[k] += s[k] || 0;\n  totali.sessioni++;\n  for (const [g, v] of Object.entries(s.giorni)) {\n    const x = giorni[g] || (giorni[g] = { token: 0, messaggi: 0, richieste: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0 });\n    x.token += v[0] || 0; x.messaggi += v[1] || 0; x.richieste += v[2] || 0; x.input += v[3] || 0; x.output += v[4] || 0; x.cacheScritta += v[5] || 0; x.cacheLetta += v[6] || 0; x.scritti += v[7] || 0;\n  }\n  const attivita = Math.max(s.ultimo, ultimoFile[id] || 0);\n  const stato = ora - attivita < 120000 ? 'al lavoro' : s.bloccata ? 'bloccata' : 'ferma';\n  sessioni.push({ id, titolo: s.titolo || s.primoTesto || 'Senza titolo', progetto: s.progetto.replace(/^C--Users-[^-]+-(Documents-)?/, '').replace(/-/g, ' '),\n    messaggi: s.messaggi, richieste: s.richieste, token: s.token, ultimo: attivita, stato, mesi: perMese(s.giorni), giorni: Object.fromEntries(Object.entries(s.giorni).map(([k, v]) => [k, [v[0] || 0, v[1] || 0, v[2] || 0]])) });\n}\nsessioni.sort((a, b) => b.ultimo - a.ultimo);\nprocess.stdout.write(JSON.stringify({ aggiornato: ora, totali, sessioni, giorni }));\n"
+const CONTA_JS = "// Conta messaggi e token di tutte le conversazioni di Claude Code salvate su questo PC (~/.claude/projects).\n// Legge solo i numeri: messaggi dell'utente, token di ogni risposta, data e titolo della chat. Nessun testo esce da qui.\n// Legge ogni file una volta sola e poi solo le righe nuove (cache in ~/.claude/utilizzo-cache.json).\n// Uscita (stdout): JSON { aggiornato, totali, sessioni: [...], giorni: { \"2026-10-23\": { token, messaggi } } }\n'use strict';\nconst fs = require('fs'), path = require('path'), os = require('os');\nconst RADICE = path.join(os.homedir(), '.claude', 'projects');\nconst CACHE = path.join(os.homedir(), '.claude', 'utilizzo-cache.json');\nconst VERSIONE = 5;   // 5: anche i token scritti dalla persona (stima dalla lunghezza dei suoi messaggi)\n\nlet cache = { v: VERSIONE, file: {}, sessioni: {} };\ntry { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.v === VERSIONE) cache = c; } catch (e) {}\n\nfunction fileJsonl(dir, out = []) {\n  let voci; try { voci = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }\n  for (const v of voci) {\n    const p = path.join(dir, v.name);\n    if (v.isDirectory()) fileJsonl(p, out);\n    else if (v.name.endsWith('.jsonl')) out.push(p);\n  }\n  return out;\n}\nconst giorno = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };\nfunction sessione(id) {\n  return cache.sessioni[id] || (cache.sessioni[id] = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, titolo: '', progetto: '', primo: 0, ultimo: 0, giorni: {}, bloccata: false });\n}\n// un messaggio scritto dalla persona (non i risultati degli strumenti, non gli avvisi del sistema)\nfunction testoUtente(m) {\n  if (!m || m.role !== 'user') return null;\n  if (typeof m.content === 'string') return m.content;\n  if (!Array.isArray(m.content) || m.content.some(b => b && b.type === 'tool_result')) return null;\n  const t = m.content.find(b => b && b.type === 'text');\n  return t ? t.text : null;\n}\n\nfunction leggiRighe(file, da) {\n  const fd = fs.openSync(file, 'r'), dim = fs.fstatSync(fd).size, pezzi = [];\n  let pos = da;\n  const buf = Buffer.alloc(4 * 1024 * 1024);\n  while (pos < dim) { const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos); if (!n) break; pezzi.push(Buffer.from(buf.subarray(0, n))); pos += n; }\n  fs.closeSync(fd);\n  const tutto = Buffer.concat(pezzi), fine = tutto.lastIndexOf(10);   // solo righe complete\n  if (fine < 0) return { righe: [], nuovoInizio: da };\n  return { righe: tutto.subarray(0, fine).toString('utf8').split('\\n'), nuovoInizio: da + fine + 1 };\n}\n\nconst ora = Date.now(), visti = new Set();\nfor (const file of fileJsonl(RADICE)) {\n  visti.add(file);\n  let st; try { st = fs.statSync(file); } catch (e) { continue; }\n  const f = cache.file[file] || (cache.file[file] = { inizio: 0, richieste: [], mtime: 0 });\n  f.mtime = st.mtimeMs;\n  if (st.size < f.inizio) { f.inizio = 0; f.richieste = []; }   // file riscritto: si ricomincia\n  if (st.size === f.inizio) continue;\n  const secondario = file.includes(`${path.sep}subagents${path.sep}`);\n  const giaContate = new Set(f.richieste);\n  const { righe, nuovoInizio } = leggiRighe(file, f.inizio);\n  for (const r of righe) {\n    if (!r) continue;\n    let j; try { j = JSON.parse(r); } catch (e) { continue; }\n    if (!j.sessionId) continue;\n    const s = sessione(j.sessionId);\n    if (!s.progetto) s.progetto = path.basename(secondario ? path.dirname(path.dirname(path.dirname(file))) : path.dirname(file));\n    if (j.type === 'custom-title' && j.customTitle) { s.titolo = j.customTitle; continue; }\n    const ts = j.timestamp ? Date.parse(j.timestamp) : NaN;\n    if (!isNaN(ts)) { if (!s.primo || ts < s.primo) s.primo = ts; if (ts > s.ultimo) s.ultimo = ts; }\n    if (j.type === 'assistant' && j.message && j.message.usage) {\n      const id = j.requestId || j.message.id;\n      if (id && giaContate.has(id)) continue;   // la stessa risposta \u00e8 scritta su pi\u00f9 righe\n      if (id) { giaContate.add(id); f.richieste.push(id); }\n      const u = j.message.usage, tot = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);\n      s.richieste++; s.token += tot; s.input += u.input_tokens || 0; s.output += u.output_tokens || 0;\n      s.cacheScritta += u.cache_creation_input_tokens || 0; s.cacheLetta += u.cache_read_input_tokens || 0;\n      if (!isNaN(ts)) {\n        const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0]);\n        g[0] += tot; g[2] = (g[2] || 0) + 1; g[3] = (g[3] || 0) + (u.input_tokens || 0); g[4] = (g[4] || 0) + (u.output_tokens || 0);\n        g[5] = (g[5] || 0) + (u.cache_creation_input_tokens || 0); g[6] = (g[6] || 0) + (u.cache_read_input_tokens || 0);\n      }\n      s.bloccata = false;\n      if (f.richieste.length > 50000) f.richieste = f.richieste.slice(-20000);\n    } else if (j.type === 'assistant' && j.isApiErrorMessage) {\n      const t = JSON.stringify(j.message || '').toLowerCase();\n      s.bloccata = /limit|limite|quota|rate/.test(t);\n    } else if (!secondario && j.type === 'user' && !j.isMeta && !j.isCompactSummary) {\n      const t = testoUtente(j.message);\n      if (t == null || /^\\s*</.test(t)) continue;   // avvisi e comandi interni, non messaggi della persona\n      s.messaggi++;\n      const stima = Math.ceil(t.length / 4);   // ~4 caratteri per token: si conta solo la lunghezza, il testo non si salva\n      s.scritti = (s.scritti || 0) + stima;\n      if (!s.titolo && !s.primoTesto) s.primoTesto = t.replace(/\\s+/g, ' ').slice(0, 60);\n      if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0, 0]); g[1]++; g[7] = (g[7] || 0) + stima; }\n    }\n  }\n  f.inizio = nuovoInizio;\n}\nfor (const k of Object.keys(cache.file)) if (!visti.has(k)) delete cache.file[k];\ntry { fs.writeFileSync(CACHE, JSON.stringify(cache)); } catch (e) {}\n\n// ---- riepilogo ----\nconst ultimoFile = {};\nfor (const [p, f] of Object.entries(cache.file)) { const id = path.basename(p, '.jsonl'); ultimoFile[id] = Math.max(ultimoFile[id] || 0, f.mtime); }\n// per ogni mese \"2026-10\": [token, messaggi, richieste] della chat\nfunction perMese(g) { const m = {}; for (const [k, v] of Object.entries(g)) { const x = m[k.slice(0, 7)] || (m[k.slice(0, 7)] = [0, 0, 0]); x[0] += v[0] || 0; x[1] += v[1] || 0; x[2] += v[2] || 0; } return m; }\nconst totali = { messaggi: 0, richieste: 0, token: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0, sessioni: 0 };\nconst giorni = {}, sessioni = [];\nfor (const [id, s] of Object.entries(cache.sessioni)) {\n  if (!s.richieste && !s.messaggi) continue;\n  for (const k of ['messaggi', 'richieste', 'token', 'input', 'output', 'cacheScritta', 'cacheLetta', 'scritti']) totali[k] += s[k] || 0;\n  totali.sessioni++;\n  for (const [g, v] of Object.entries(s.giorni)) {\n    const x = giorni[g] || (giorni[g] = { token: 0, messaggi: 0, richieste: 0, input: 0, output: 0, cacheScritta: 0, cacheLetta: 0, scritti: 0 });\n    x.token += v[0] || 0; x.messaggi += v[1] || 0; x.richieste += v[2] || 0; x.input += v[3] || 0; x.output += v[4] || 0; x.cacheScritta += v[5] || 0; x.cacheLetta += v[6] || 0; x.scritti += v[7] || 0;\n  }\n  const attivita = Math.max(s.ultimo, ultimoFile[id] || 0);\n  const stato = ora - attivita < 120000 ? 'al lavoro' : s.bloccata ? 'bloccata' : 'ferma';\n  sessioni.push({ id, titolo: s.titolo || s.primoTesto || 'Senza titolo', progetto: s.progetto.replace(/^C--Users-[^-]+-(Documents-)?/, '').replace(/-/g, ' '),\n    messaggi: s.messaggi, richieste: s.richieste, token: s.token, u: [s.input || 0, s.output || 0, s.cacheScritta || 0, s.cacheLetta || 0], ultimo: attivita, stato, mesi: perMese(s.giorni), giorni: Object.fromEntries(Object.entries(s.giorni).map(([k, v]) => [k, [v[0] || 0, v[1] || 0, v[2] || 0]])) });\n}\nsessioni.sort((a, b) => b.ultimo - a.ultimo);\nprocess.stdout.write(JSON.stringify({ aggiornato: ora, totali, sessioni, giorni }));\n"
+// i crediti API (strumenti/api.js), anche loro dentro il modulo
+const API_JS = "// Crediti API per il pannello \u00abUtilizzo\u00bb (facoltativo): legge ~/.claude/utilizzo-api/config.json (crediti, scadenze, prezzi)\n// e, se c'\u00e8, uso.jsonl (una riga per lavoro: { data, titolo, modello, costo }). Solo numeri. Senza config.json la sezione non compare.\n// Uscita (stdout): JSON { crediti, speso, lavori, prezzi, ricarica, ultimi }\n'use strict';\nconst fs = require('fs'), path = require('path'), os = require('os');\nconst CARTELLA = path.join(os.homedir(), '.claude', 'utilizzo-api');\nlet config = { crediti: [], prezzi_per_milione: {}, ricarica: 'https://console.anthropic.com/settings/billing' };\nlet presente = false;\ntry { config = { ...config, ...JSON.parse(fs.readFileSync(path.join(CARTELLA, 'config.json'), 'utf8')) }; presente = true; } catch (e) {}\nconst lavori = [];\ntry {\n  for (const r of fs.readFileSync(path.join(CARTELLA, 'uso.jsonl'), 'utf8').split('\\n')) {\n    if (!r.trim()) continue;\n    try { const j = JSON.parse(r); lavori.push({ data: j.data, titolo: j.titolo, modello: j.modello, costo: Number(j.costo) || 0, minuti: j.minuti, esito: j.esito }); } catch (e) {}\n  }\n} catch (e) {}\nconst speso = lavori.reduce((s, l) => s + l.costo, 0);\nprocess.stdout.write(JSON.stringify({\n  crediti: config.crediti, speso, lavori: lavori.length, prezzi: config.prezzi_per_milione, ricarica: config.ricarica,\n  presente, chiave: true, ultimi: lavori.slice(-5).reverse(),\n}));\n"
 const BLU = '#3b82f6', BLU_SCURO = '#1d4ed8', GRIGIO = '#94a3b8'
 
 const dati = atom({ plugin: 'utilizzo', key: 'dati' } as const, null)
@@ -50,6 +52,15 @@ const info = atom({ plugin: 'utilizzo', key: 'info' } as const, '')
 const misura = atom({ plugin: 'utilizzo', key: 'misura' } as const, 'a4')
 // true quando il pannello è stato chiuso: sopra la casella dei messaggi compare il pulsante per riaprirlo
 const chiuso = atom({ plugin: 'utilizzo', key: 'chiuso' } as const, false)
+// crediti API (strumenti/api.js) e riquadro «Ricarica» aperto o chiuso
+const api = atom({ plugin: 'utilizzo', key: 'api' } as const, null)
+const apiAperto = atom({ plugin: 'utilizzo', key: 'apiAperto' } as const, false)
+// spiegazione dietro l'icona ⓘ accanto a «Ricarica e quanto costa» (chiesta dall'utente il 26.10.2026)
+const apiInfo = atom({ plugin: 'utilizzo', key: 'apiInfo' } as const, false)
+// prezzi di riserva se config.json manca (dollari per milione di token, Opus 5.5)
+const OPUS: Prezzo = { entrata: 4, uscita: 20, cache_scritta: 8, cache_letta: 0.2 }
+// costo in dollari di [entrata, uscita, cache scritta, cache riletta]
+const costo = (p: Prezzo, i: number, o: number, cw: number, cr: number) => (i * p.entrata + o * p.uscita + cw * p.cache_scritta + cr * p.cache_letta) / 1e6
 
 // misure per rendere i token comprensibili. Un token è circa 3/4 di parola:
 // una pagina A4 di testo (~500 parole) ≈ 650 token; un libro di 300 pagine ≈ 200'000 token;
@@ -185,6 +196,10 @@ async function aggiorna($: any) {
     const [id, turni, modello] = await Promise.all([$.session.id(), $.session.turns(), $.session.model()])
     await update($, memoria, () => ({ tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, categorie, id, inizio: u.startedAt, turni, modello }))
   } catch (e) { /* i limiti arrivano con la prossima risposta */ }
+  try {
+    const ra = await $.process.run(['node', '-e', API_JS], { timeoutMs: 20000 })
+    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Api; await update($, api, () => x) }
+  } catch (e) { /* la sezione API resta com'era */ }
   if (inCorso) return
   inCorso = true
   try {
@@ -285,7 +300,9 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
-    const { Box, Text, Button, Select, Svg, Client } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Select, Svg, Client, Link } = $.ui.resolve(e) as any
+    const A = TESTI_API[(linguaDa || 'it') as Lingua] ?? TESTI_API.it
+    const ap = await read($, api), apApert = await read($, apiAperto), apInfo = await read($, apiInfo)
     const d = await read($, dati), L = await read($, limiti), mem = await read($, memoria)
     const s = await read($, scelta), mostraTutte = await read($, tutte), err = await read($, errore), espanso = await read($, aperto), elencoAperto = await read($, chatAperte), statoComprimi = await read($, comprimi), menuAperto = await read($, menu), infoAperta = await read($, info), m = await read($, misura)
     const mis = (n: number) => inMisura(n, m)
@@ -345,10 +362,82 @@ export const register: Register = on => {
     // memoria della sessione
     const pMem = mem?.percent ?? (mem?.tokens && mem.window ? (100 * mem.tokens) / mem.window : 0)
 
+    // ---- crediti API: rimasti, scadenza, quanto costerebbe questa chat, riquadro per ricaricare ----
+    const soldi = (n: number) => `${dec(n, n >= 100 ? 0 : 2)} $`
+    const prezzo: Prezzo = ap?.prezzi?.['claude-opus-5-5'] ?? OPUS
+    const adessoMs = Date.now()
+    const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > adessoMs)
+    const totCredito = attivi.reduce((x, c) => x + c.dollari, 0)
+    const rimasto = Math.max(0, totCredito - (ap?.speso ?? 0))
+    const dataBreve = (iso: string) => { const x = new Date(iso + 'T00:00:00'); return `${T.giorniBrevi[x.getDay()]} ${x.getDate()} ${T.mesi[x.getMonth()]}` }
+    const righeCrediti: any[] = []
+    if (!ap || !(ap.crediti ?? []).length) righeCrediti.push(<Text dimColor>{A.nessunCredito}</Text>)
+    for (const c of ap?.crediti ?? []) {
+      if (!c.scadenza) continue
+      const ms = Date.parse(c.scadenza + 'T00:00:00') - adessoMs, gg = Math.ceil(ms / 86400000)
+      righeCrediti.push(ms > 0
+        ? <Text color={gg <= 7 ? '#f59e0b' : undefined}>{A.scade(dataBreve(c.scadenza), gg)} · {soldi(c.dollari)}</Text>
+        : <Text dimColor>{A.scaduto(dataBreve(c.scadenza))}</Text>)
+    }
+    const dChat = d?.sessioni.find(x => x.id === mem?.id)
+    const costoChat = dChat?.u ? costo(prezzo, dChat.u[0], dChat.u[1], dChat.u[2], dChat.u[3]) : 0
+    const oggiK = (() => { const o = new Date(); return chiave(o.getFullYear(), o.getMonth(), o.getDate()) })()
+    const costoGiorno = (k: string) => { const g = d?.giorni[k]; return g ? costo(prezzo, g.input ?? 0, g.output ?? 0, g.cacheScritta ?? 0, g.cacheLetta ?? 0) : 0 }
+    const meseK = oggiK.slice(0, 7)
+    const costoMese = Object.keys(d?.giorni ?? {}).filter(k => k.startsWith(meseK)).reduce((x, k) => x + costoGiorno(k), 0)
+    const sezioneApi = sezione(A.sez,
+      totCredito > 0 ? <Text>{A.rimasti(soldi(rimasto), soldi(totCredito))}</Text> : null,
+      totCredito > 0 ? barraSvg(totCredito ? (100 * rimasto) / totCredito : 0, rimasto / Math.max(1, totCredito) < 0.2 ? '#ef4444' : '#22c55e', A.rimasti(soldi(rimasto), soldi(totCredito))) : null,
+      // toccando ⓘ la spiegazione compare qui, sopra il box (dove prima c'era la scritta arancione)
+      apInfo ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={BLU} paddingX={1} gap={1}>
+          {/* tutto il testo dei crediti sta qui dentro: si vede solo toccando ⓘ */}
+          <Box flexDirection="column">
+            {righeCrediti}
+            <Text dimColor>{A.lavori(ap?.lavori ?? 0, soldi(ap?.speso ?? 0))}</Text>
+            {d ? <Text>{A.questaChat(soldi(costoChat))}</Text> : null}
+            {d ? <Text dimColor>{A.oggiMese(soldi(costoGiorno(oggiK)), soldi(costoMese))}</Text> : null}
+          </Box>
+          {ap && !ap.chiave ? <Text color="#f59e0b" size="caption">{A.senzaChiave}</Text> : null}
+          <Text size="caption">{A.nonClaudeCode}</Text>
+          <Text dimColor size="caption">{A.stima}</Text>
+        </Box>
+      ) : null,
+      // il box «Ricarica e quanto costa» con accanto la piccola icona ⓘ: la spiegazione compare solo toccandola
+      <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+        <Box flexDirection="row" alignItems="center" gap={1}>
+          <Button key="api-ricarica" label={`${apApert ? '▾' : '▸'} ${A.apriRicarica}`} onPress={() => { void update($, apiAperto, (v: boolean) => !v) }} />
+          <Button key="api-info" label="ⓘ" variant={apInfo ? 'primary' : undefined} onPress={() => { void update($, apiInfo, (v: boolean) => !v) }} />
+        </Box>
+        {apApert ? [
+          // 1) quanto costa: etichetta corta a sinistra, prezzo a destra, una riga ciascuno
+          <Text key="api-t1" bold color={BLU}>{A.costiTitolo}</Text>,
+          ...A.costi.map(([nome, quanto]) => <Box key={`costo-${nome}`} flexDirection="row" justifyContent="space-between"><Text>{nome}</Text><Text bold>{quanto}</Text></Box>),
+          <Text key="api-cento" dimColor>{A.conCento} {A.esempiCento.join(' · ')}</Text>,
+          // 2) prezzi dei modelli: nome e due numeri, entrata · uscita
+          <Box key="api-t2" flexDirection="row" justifyContent="space-between" marginTop={1}><Text bold color={BLU}>{A.prezziTitolo}</Text></Box>,
+          <Box key="api-col" flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{A.colonne}</Text></Box>,
+          ...Object.entries(ap?.prezzi ?? { 'claude-opus-5-5': OPUS }).map(([m, p]) => (
+            <Box key={`prezzo-${m}`} flexDirection="row" justifyContent="space-between">
+              <Text>{A.nomeModello[m] ?? m}</Text>
+              <Text bold>{dec(p.entrata, p.entrata < 1 ? 2 : 0)} $ · {dec(p.uscita, p.uscita < 1 ? 2 : 0)} $</Text>
+            </Box>
+          )),
+          // 3) come ricaricare: tre passi numerati e il link
+          <Box key="api-t3" marginTop={1}><Text bold color={BLU}>{A.ricaricaTitolo}</Text></Box>,
+          ...A.passi.map((x, i) => <Text key={`passo-${i}`}>{i + 1}. {x}</Text>),
+          Link ? <Link key="api-link" href={ap?.ricarica ?? 'https://console.anthropic.com/settings/billing'} label={A.vaiConsole} /> : <Text key="api-link">{ap?.ricarica}</Text>,
+          ap?.ultimi?.length ? <Box key="api-t4" marginTop={1}><Text bold color={BLU}>{A.ultimi}</Text></Box> : null,
+          ...(ap?.ultimi ?? []).map((l, i) => <Text key={`lav-${i}`} dimColor>{l.data.slice(5, 16).replace('T', ' ')} · {l.titolo} · {soldi(l.costo)}</Text>),
+        ] : null}
+      </Box>,
+    )
+
     const parti: any[] = [
       // solo mentre conta la prima volta; poi la riga sparisce
       d ? null : <Text dimColor>{T.stoContando}</Text>,
       sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>),
+      (ap as any)?.presente ? sezioneApi : null,
       sezione(T.sezMemoria,
         // comprimere adesso: Claude riassume la chat e libera memoria, senza aspettare il 97%. Chiede conferma.
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">

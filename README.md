@@ -9,6 +9,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **Totals**: messages sent, requests, tokens (total, cache reads, written by Claude, written by you, new input), per message; click a box for its explanation
 - **Readable token unit**: choose what 1 Token equals — one A4 page, one book, one hour of writing, or one real token
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
+- **API credits**: credit left with a bar, and a **Top up and what it costs** box (cost per kind of job, model prices, how to top up). Behind the small **ⓘ** icon: expiry date, jobs done with the API, and what this chat, today and this month would cost at API prices (Opus 5.5)
 
 Everything is counted locally from `~/.claude/projects` (numbers only, no message text). Nothing is sent anywhere.
 The interface follows the language set in Claude Code, or else the computer's language: English, Italian, German, French and Spanish (other languages fall back to English).
@@ -22,6 +23,12 @@ Created by **y05mueller-jpg** (y05.mueller@gmail.com), first published on 23 Oct
 ```
 
 Then open it with `/utilizzo`. If you close the panel, a small **▤ Usage** button appears above the message box to reopen it. Requires Node.js on the PATH.
+
+## API credits (optional)
+
+The section appears only if you create `~/.claude/utilizzo-api/config.json` (start from `utilizzo/strumenti/config-api.example.json`) with your own credits, expiry dates and prices.
+Optionally, any tool of yours can append one line per job to `~/.claude/utilizzo-api/uso.jsonl` (`{ "data", "titolo", "modello", "costo" }`) to show spending.
+The panel never reads or needs an API key and is not connected to any account.
 
 ## Credit request
 
