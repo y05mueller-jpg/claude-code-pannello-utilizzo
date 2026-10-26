@@ -649,6 +649,7 @@ export const register: Register = on => {
       </Box>,
     )
     parti.push(<Text dimColor>{T.notaStati}</Text>)
+    parti.push(<Text dimColor size="footnote">{T.creatoDa}</Text>)   // firma dell'autore
 
     return <Box flexDirection="column-reverse" gap={1}>{[...parti].reverse()}</Box>
   })

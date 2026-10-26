@@ -310,6 +310,7 @@
     const assenti = cercate.filter(f => !disponibili.includes(f)).map(f => fonti[f].nome);
     if (assenti.length) parti.push(`<p class="tenue piccolo">${esc(L.nonTrovati(assenti.join(', ')))}</p>`);
     parti.push(`<p class="tenue piccolo">${esc(L.notaStati)}</p><p class="tenue piccolo">${esc(L.privacy)}</p>`);
+    parti.push(`<p class="tenue piccolo firma">${esc(L.creatoDa)}</p>`);   // firma dell'autore
     app.innerHTML = parti.join('');
   }
 

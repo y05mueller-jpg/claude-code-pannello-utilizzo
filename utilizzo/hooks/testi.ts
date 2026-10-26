@@ -36,6 +36,7 @@ export type Testi = {
   scrittiClaude: string; tokenRisposta: string; scrittiDaTe: string; tokenTuoi: string; nuoviEntrata: string; tokenPrimaVolta: string
   ultime5: string; settimanale: string; spesa: string; siAzzera: (q: string) => string; limitiDopo: string
   aggiornato: (f: string) => string; stoContando: string
+  creatoDa: string
   sezLimiti: string; sezMemoria: string; autoAl: (n: number) => string
   comprimo: string; siComprimi: string; annulla: string; comprimiOra: string; spiegaComprimi: string
   diToken: (a: string, b: string) => string; composizione: string; memoriaPct: (n: number) => string
@@ -79,6 +80,7 @@ const it: Testi = {
   scrittiDaTe: 'Scritti da te', tokenTuoi: 'Token dei messaggi che hai scritto (stima)', scrittiClaude: 'Scritti da Claude', tokenRisposta: 'Token di risposta', nuoviEntrata: 'Nuovi in entrata', tokenPrimaVolta: 'Token letti la prima volta',
   ultime5: 'Ultime 5 ore', settimanale: 'Settimanale', spesa: 'Spesa', siAzzera: q => `si azzera ${q}`, limitiDopo: 'I limiti compaiono dopo la prossima risposta di Claude.',
   aggiornato: f => `Aggiornato ${f}`, stoContando: 'Sto contando…',
+  creatoDa: "Creato da Yannis Müller · Fondatore di YouppyApps",
   sezLimiti: 'Limiti', sezMemoria: 'Memoria di questa chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimo…', siComprimi: 'Sì, comprimi', annulla: 'Annulla', comprimiOra: 'Comprimi ora',
   spiegaComprimi: 'Claude riassume la chat per liberare memoria: i dettagli più vecchi diventano un riassunto.',
@@ -125,6 +127,7 @@ const en: Testi = {
   scrittiDaTe: 'Written by you', tokenTuoi: 'Tokens of the messages you wrote (estimate)', scrittiClaude: 'Written by Claude', tokenRisposta: 'Reply tokens', nuoviEntrata: 'New input', tokenPrimaVolta: 'Tokens read for the first time',
   ultime5: 'Last 5 hours', settimanale: 'Weekly', spesa: 'Spend', siAzzera: q => `resets ${q}`, limitiDopo: "Limits appear after Claude's next reply.",
   aggiornato: f => `Updated ${f}`, stoContando: 'Counting…',
+  creatoDa: "Created by Yannis Müller · Founder of YouppyApps",
   sezLimiti: 'Limits', sezMemoria: 'Memory of this chat', autoAl: n => `auto at ${n}%`,
   comprimo: 'Compacting…', siComprimi: 'Yes, compact', annulla: 'Cancel', comprimiOra: 'Compact now',
   spiegaComprimi: 'Claude summarizes the chat to free memory: older details become a summary.',
@@ -171,6 +174,7 @@ const de: Testi = {
   scrittiDaTe: 'Von dir geschrieben', tokenTuoi: 'Token deiner geschriebenen Nachrichten (Schätzung)', scrittiClaude: 'Von Claude geschrieben', tokenRisposta: 'Antwort-Token', nuoviEntrata: 'Neu eingehend', tokenPrimaVolta: 'Zum ersten Mal gelesene Token',
   ultime5: 'Letzte 5 Stunden', settimanale: 'Wöchentlich', spesa: 'Ausgaben', siAzzera: q => `wird zurückgesetzt ${q}`, limitiDopo: 'Die Limits erscheinen nach der nächsten Antwort von Claude.',
   aggiornato: f => `Aktualisiert ${f}`, stoContando: 'Zähle…',
+  creatoDa: "Erstellt von Yannis Müller · Gründer von YouppyApps",
   sezLimiti: 'Limits', sezMemoria: 'Speicher dieses Chats', autoAl: n => `auto bei ${n}%`,
   comprimo: 'Komprimiere…', siComprimi: 'Ja, komprimieren', annulla: 'Abbrechen', comprimiOra: 'Jetzt komprimieren',
   spiegaComprimi: 'Claude fasst den Chat zusammen, um Speicher freizugeben: ältere Details werden zu einer Zusammenfassung.',
@@ -217,6 +221,7 @@ const fr: Testi = {
   scrittiDaTe: 'Écrits par toi', tokenTuoi: 'Tokens des messages que tu as écrits (estimation)', scrittiClaude: 'Écrits par Claude', tokenRisposta: 'Tokens de réponse', nuoviEntrata: 'Nouveaux en entrée', tokenPrimaVolta: 'Tokens lus pour la première fois',
   ultime5: 'Dernières 5 heures', settimanale: 'Hebdomadaire', spesa: 'Dépenses', siAzzera: q => `remise à zéro ${q}`, limitiDopo: 'Les limites apparaissent après la prochaine réponse de Claude.',
   aggiornato: f => `Mis à jour ${f}`, stoContando: 'Comptage…',
+  creatoDa: "Créé par Yannis Müller · Fondateur de YouppyApps",
   sezLimiti: 'Limites', sezMemoria: 'Mémoire de ce chat', autoAl: n => `auto à ${n} %`,
   comprimo: 'Compression…', siComprimi: 'Oui, compresser', annulla: 'Annuler', comprimiOra: 'Compresser',
   spiegaComprimi: 'Claude résume le chat pour libérer de la mémoire : les détails plus anciens deviennent un résumé.',
@@ -263,6 +268,7 @@ const es: Testi = {
   scrittiDaTe: 'Escritos por ti', tokenTuoi: 'Tokens de los mensajes que escribiste (estimación)', scrittiClaude: 'Escritos por Claude', tokenRisposta: 'Tokens de respuesta', nuoviEntrata: 'Nuevos de entrada', tokenPrimaVolta: 'Tokens leídos por primera vez',
   ultime5: 'Últimas 5 horas', settimanale: 'Semanal', spesa: 'Gasto', siAzzera: q => `se reinicia ${q}`, limitiDopo: 'Los límites aparecen tras la próxima respuesta de Claude.',
   aggiornato: f => `Actualizado ${f}`, stoContando: 'Contando…',
+  creatoDa: "Creado por Yannis Müller · Fundador de YouppyApps",
   sezLimiti: 'Límites', sezMemoria: 'Memoria de este chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimiendo…', siComprimi: 'Sí, comprimir', annulla: 'Cancelar', comprimiOra: 'Comprimir ahora',
   spiegaComprimi: 'Claude resume el chat para liberar memoria: los detalles más antiguos se convierten en un resumen.',
