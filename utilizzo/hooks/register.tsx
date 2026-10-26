@@ -640,7 +640,7 @@ export const register: Register = on => {
     const tre = (n: number) => `${soldi(tetto(n, 'leggero'))} · ${soldi(tetto(n, 'medio'))} · ${soldi(tetto(n, 'pesante'))}`
     const opzGiri = [
       { value: '0', label: `${T_GIRI.nome(CONSIGLIATI[livNow])} (auto) · ${T_GIRI.livelli[livNow]} ${soldi(tetto(CONSIGLIATI[livNow], livNow))}` },
-      ...OPZIONI_GIRI.map(n => ({ value: String(n), label: `${T_GIRI.nome(n)} · ${tre(n)}` })),
+      ...OPZIONI_GIRI.map(n => ({ value: String(n), label: `${T_GIRI.nome(n)} · ${T_GIRI.livelli[livNow]} ${soldi(tetto(n, livNow))}` })),
     ]
     const ora2 = (t: number) => { const d0 = new Date(t); return `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}` }
     const opzCosti = rich.length
@@ -652,7 +652,6 @@ export const register: Register = on => {
         {Select
           ? <Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} />
           : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
-        <Box flexDirection="row" justifyContent="flex-end"><Text dimColor size="caption">{T_GIRI.colonne}</Text></Box>
         {Select
           ? <Select key="giri-costi" label={T_GIRI.costoEffettivo} options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
           : <Text>{opzCosti[0]?.label}</Text>}
