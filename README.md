@@ -30,6 +30,14 @@ The section appears only if you create `~/.claude/utilizzo-api/config.json` (sta
 Optionally, any tool of yours can append one line per job to `~/.claude/utilizzo-api/uso.jsonl` (`{ "data", "titolo", "modello", "costo" }`) to show spending.
 The panel never reads or needs an API key and is not connected to any account.
 
+## VS Code, Cursor, Windsurf — Claude Code and OpenAI Codex
+
+The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
+It adapts to the provider by itself: it counts **Claude Code** (`~/.claude/projects`) and **OpenAI Codex CLI** (`~/.codex/sessions`) chats found on the computer and shows only what it finds; with both, a selector lets you see Claude, OpenAI or all together.
+Same sections (totals, daily chart by day / month / year, usage per chat, optional API credits), plus the Codex 5-hour and weekly limits. Numbers only, no network, no API key.
+
+Download the `.vsix` from the [Releases](https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/releases) page and install it with **Extensions → … → Install from VSIX…**. Details in [`vscode/README.md`](vscode/README.md).
+
 ## Credit request
 
 **If Anthropic, or anyone else, builds this panel or a feature based on it into Claude or Claude Code,
@@ -42,6 +50,8 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
 Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
+
+Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo al provider: conta le chat di **Claude Code** e di **OpenAI Codex CLI** che trova sul computer e mostra solo quelle; se ci sono tutti e due, in alto si sceglie Claude, OpenAI o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 
 Creato da **y05mueller-jpg** (y05.mueller@gmail.com), pubblicato per la prima volta il 23 ottobre 2026.
 **Se Anthropic o altri integrano questo pannello, o una funzione basata su di esso, in Claude o Claude Code, chiedo di citare esplicitamente l'autore prima della pubblicazione.**

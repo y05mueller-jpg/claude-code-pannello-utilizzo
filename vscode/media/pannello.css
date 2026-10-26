@@ -1,0 +1,76 @@
+/* Panel style: follows the editor theme (light, dark, high contrast) through the --vscode-* colors */
+:root { --blu: #3b82f6; --bordo: var(--vscode-widget-border, var(--vscode-panel-border, rgba(128,128,128,.35))); }
+body { padding: 8px 12px 24px; color: var(--vscode-foreground); background: transparent; font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); line-height: 1.4; }
+* { box-sizing: border-box; }
+p { margin: 2px 0; }
+section { margin: 14px 0; }
+h2 { font-size: 1.05em; font-weight: 600; margin: 0 0 6px; }
+h3 { font-size: 1em; font-weight: 600; color: var(--blu); margin: 10px 0 4px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+a { color: var(--vscode-textLink-foreground); }
+.tenue { color: var(--vscode-descriptionForeground); }
+.piccolo { font-size: .9em; }
+.blu { color: var(--blu); }
+.rosso { color: #ef4444; }
+.avviso { color: #f59e0b; }
+.errore { color: var(--vscode-errorForeground, #ef4444); }
+
+/* top: source selector + refresh */
+.cima { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fonti { display: inline-flex; border: 1px solid var(--bordo); border-radius: 6px; overflow: hidden; }
+.fonti button { border: 0; background: transparent; padding: 4px 10px; display: inline-flex; align-items: center; gap: 6px; }
+.fonti button + button { border-left: 1px solid var(--bordo); }
+.fonti button.scelto { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.solo { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.fonti i, .legenda i, .punto, .solo i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.legenda i { margin: 0 4px 0 10px; } .legenda i:first-child { margin-left: 0; }
+.punto { margin-right: 6px; vertical-align: middle; }
+.icona { border: 1px solid var(--bordo); background: transparent; border-radius: 6px; width: 28px; height: 26px; padding: 0; }
+.icona.attiva { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }
+button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+
+.barra { height: 8px; border-radius: 4px; background: rgba(148,163,184,.25); overflow: hidden; margin: 4px 0 2px; }
+.barra div { height: 100%; border-radius: 4px; }
+.limite + .limite { margin-top: 8px; }
+
+/* boxes of the totals */
+.riquadri { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.riquadro { position: relative; text-align: left; border: 1px solid var(--bordo); border-radius: 8px; background: transparent; padding: 6px 8px; display: flex; flex-direction: column; min-width: 0; }
+.riquadro:hover { background: var(--vscode-list-hoverBackground); }
+.riquadro .nome { font-size: .85em; color: var(--vscode-descriptionForeground); }
+.riquadro .valore { font-size: 1.35em; font-weight: 600; overflow-wrap: anywhere; }
+.riquadro .nota { position: absolute; z-index: 5; left: -1px; right: -1px; top: 100%; margin-top: 4px; padding: 6px 8px; border: 2px solid var(--blu); border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); font-size: .9em; }
+
+/* choosers that open a small window above what is below */
+.sopra { position: relative; margin-bottom: 8px; }
+.riga { display: flex; justify-content: space-between; gap: 8px; }
+.riga.sinistra { justify-content: flex-start; align-items: center; }
+.riga.destra { justify-content: flex-end; }
+.scegli { border: 1px solid var(--bordo); background: var(--vscode-dropdown-background, transparent); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+.scelte { display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; }
+.campo { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.freccia { border: 1px solid var(--bordo); background: transparent; border-radius: 6px; padding: 3px 7px; }
+.finestra { position: absolute; z-index: 10; left: 0; right: 0; top: 100%; margin-top: 4px; padding: 8px; border: 1px solid var(--blu); border-radius: 8px;
+  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); display: flex; flex-direction: column; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+.finestra button { border: 1px solid var(--bordo); background: transparent; border-radius: 6px; padding: 4px 6px; }
+.finestra button.scelto { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.finestra button.oggi { border: 2px solid var(--blu); }
+.finestra.griglia { display: grid; gap: 6px; }
+
+/* chart */
+.grafico { width: 100%; height: auto; display: block; margin: 4px 0; }
+.grafico .asse { stroke: var(--vscode-descriptionForeground); stroke-opacity: .4; }
+.grafico .etichetta { font-size: 9px; text-anchor: middle; fill: var(--vscode-descriptionForeground); }
+.grafico .colonna { cursor: pointer; }
+.grafico .colonna:hover rect[fill]:not([fill="transparent"]) { opacity: .8; }
+.grafico rect.scelta { stroke: #93c5fd; stroke-width: 1; }
+
+/* boxes that open */
+.box { border: 1px solid var(--bordo); border-radius: 8px; padding: 6px 8px; margin: 8px 0; }
+.testata { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.apri { border: 0; background: transparent; padding: 2px 0; text-align: left; font-weight: 600; }
+.dettagli { border: 1px solid var(--blu); border-radius: 8px; padding: 6px 8px; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.link a { margin-right: 14px; }
+.giornata { margin: 10px 0; }
+.chat { margin: 6px 0; }

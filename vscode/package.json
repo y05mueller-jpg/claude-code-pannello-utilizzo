@@ -1,0 +1,145 @@
+{
+  "name": "pannello-utilizzo",
+  "displayName": "Usage Panel – Claude Code & OpenAI Codex",
+  "description": "Side panel with messages, tokens, a daily chart and usage per chat for Claude Code and OpenAI Codex CLI. Counted locally from your chat files: no network, no API key.",
+  "version": "1.0.0",
+  "publisher": "y05mueller-jpg",
+  "author": {
+    "name": "y05mueller-jpg",
+    "email": "y05.mueller@gmail.com"
+  },
+  "license": "MIT",
+  "icon": "media/icona.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo",
+    "directory": "vscode"
+  },
+  "homepage": "https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/tree/main/vscode#readme",
+  "bugs": {
+    "url": "https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/issues"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "codex",
+    "openai",
+    "tokens",
+    "usage",
+    "cursor",
+    "windsurf"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pannelloUtilizzo",
+          "title": "Usage",
+          "icon": "media/barre.svg"
+        }
+      ]
+    },
+    "views": {
+      "pannelloUtilizzo": [
+        {
+          "type": "webview",
+          "id": "pannelloUtilizzo.vista",
+          "name": "Usage",
+          "icon": "media/barre.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pannelloUtilizzo.aggiorna",
+        "title": "Refresh",
+        "category": "Usage Panel",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pannelloUtilizzo.apri",
+        "title": "Open",
+        "category": "Usage Panel"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pannelloUtilizzo.aggiorna",
+          "when": "view == pannelloUtilizzo.vista",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Usage Panel",
+      "properties": {
+        "pannelloUtilizzo.sources.claudeCode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count Claude Code chats (~/.claude/projects)."
+        },
+        "pannelloUtilizzo.sources.openaiCodex": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count OpenAI Codex CLI sessions (~/.codex/sessions)."
+        },
+        "pannelloUtilizzo.claudeCode.folder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder with the Claude Code chats. Empty = ~/.claude/projects."
+        },
+        "pannelloUtilizzo.openaiCodex.folder": {
+          "type": "string",
+          "default": "",
+          "description": "Codex home folder (the one that contains 'sessions'). Empty = ~/.codex. Set it if you use CODEX_HOME."
+        },
+        "pannelloUtilizzo.apiCredits.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the optional 'API credits' section when its configuration file exists."
+        },
+        "pannelloUtilizzo.apiCredits.configFile": {
+          "type": "string",
+          "default": "",
+          "description": "JSON file with your API credits and prices (written by you, no key). Empty = ~/.claude/utilizzo-api/config.json."
+        },
+        "pannelloUtilizzo.refreshSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "description": "How often to count again while the panel is visible (seconds)."
+        },
+        "pannelloUtilizzo.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "en",
+            "it",
+            "de",
+            "fr",
+            "es"
+          ],
+          "description": "Panel language. 'auto' follows the editor language."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node test/prova.js",
+    "package": "vsce package --baseContentUrl https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/blob/main/vscode/ --baseImagesUrl https://raw.githubusercontent.com/y05mueller-jpg/claude-code-pannello-utilizzo/main/vscode/"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.0"
+  }
+}
