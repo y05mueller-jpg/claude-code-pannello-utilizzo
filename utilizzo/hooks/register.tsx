@@ -649,7 +649,7 @@ export const register: Register = on => {
     ]
     const ora2 = (t: number) => { const d0 = new Date(t); return `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}` }
     const opzCosti = rich.length
-      ? rich.map((x, i) => ({ value: String(i), label: `${ora2(x.ora)} · ${T_GIRI.livelli[x.liv] ?? x.liv} · ${x.inCorso ? T_GIRI.inCorso : ''}${soldi(x.costo)}` }))
+      ? rich.map((x, i) => ({ value: String(i), label: `${ora2(x.ora)} · ${T_GIRI.livelli[x.liv] ?? x.liv} · ${soldi(x.costo)}${x.inCorso ? ' …' : ''}` }))
       : [{ value: '0', label: T_GIRI.nessuna }]
     const totale = rich.filter(x => !x.inCorso).reduce((t, x) => t + x.costo, 0)
     const sezioneGiri = sezione(T_GIRI.titolo,
@@ -657,10 +657,11 @@ export const register: Register = on => {
         {Select
           ? <Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} />
           : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
+        <Box marginTop={1}><Text dimColor size="caption">{T_GIRI.costoEffettivo}</Text></Box>
         {Select
-          ? <Select key="giri-costi" label={T_GIRI.costoEffettivo} options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
+          ? <Select key="giri-costi" options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
           : <Text>{opzCosti[0]?.label}</Text>}
-        <Box flexDirection="row" justifyContent="space-between"><Text>{T_GIRI.sessione}</Text><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
+        <Box flexDirection="row" justifyContent="space-between" marginTop={1}><Text>{T_GIRI.sessione}</Text><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
         {rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null}
       </Box>,
     )
