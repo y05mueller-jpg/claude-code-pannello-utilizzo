@@ -59,13 +59,15 @@ class Pannello {
   resolveWebviewView(vista) {
     this.vista = vista;
     const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
-    vista.webview.options = { enableScripts: true, localResourceRoots: [media] };
+    // src/scelta.js (model choice) also runs in the panel, so the "Try it" box answers without any message or network
+    const scelta = vscode.Uri.joinPath(this.context.extensionUri, 'src', 'scelta.js');
+    vista.webview.options = { enableScripts: true, localResourceRoots: [media, scelta] };
     const uri = f => vista.webview.asWebviewUri(vscode.Uri.joinPath(media, f));
     const nonce = crypto.randomBytes(16).toString('base64');
     vista.webview.html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${vista.webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${vista.webview.cspSource} data:;">
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${uri('pannello.css')}"></head>
-<body><div id="app"></div><script nonce="${nonce}" src="${uri('testi.js')}"></script><script nonce="${nonce}" src="${uri('pannello.js')}"></script></body></html>`;
+<body><div id="app"></div><script nonce="${nonce}" src="${uri('testi.js')}"></script><script nonce="${nonce}" src="${vista.webview.asWebviewUri(scelta)}"></script><script nonce="${nonce}" src="${uri('pannello.js')}"></script></body></html>`;
     vista.webview.onDidReceiveMessage(m => {
       if (!m) return;
       if (m.tipo === 'pronto') { if (this.ultimi) this.invia(this.ultimi); this.aggiorna(); }

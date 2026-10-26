@@ -6,6 +6,9 @@
   const MISURE = { a4: 650, libri: 200000, ore: 3200, token: 1 };
 
   let dati = null, errore = '', inCorso = false, attive = null, L = window.TESTI.en;
+  // the text of the "Try it" box: kept only in memory, never saved or sent
+  let testoProva = '';
+  const SC = window.SCELTA;
   // the source actually shown (a tool id or 'tutti') and the tools that have chats on this computer
   let fonte = 'tutti', disponibili = [];
   const infoFonte = f => (dati && dati.fonti && dati.fonti[f]) || { nome: f, breve: f, colore: '#94a3b8' };
@@ -13,7 +16,7 @@
   const colore = f => infoFonte(f).colore;
   const scuro = c => { const n = parseInt(c.slice(1), 16); const k = x => Math.round(x * 0.62).toString(16).padStart(2, '0'); return `#${k(n >> 16)}${k((n >> 8) & 255)}${k(n & 255)}`; };
   const salvato = vscode.getState() || {};
-  const st = Object.assign({ fonte: 'tutti', misura: 'a4', scelta: null, info: '', menu: '', chatAperte: false, tutte: false, apiAperto: false, apiInfo: false }, salvato);
+  const st = Object.assign({ fonte: 'tutti', misura: 'a4', scelta: null, info: '', menu: '', chatAperte: false, tutte: false, apiAperto: false, apiInfo: false, sceltaAperta: true }, salvato);
   st.menu = ''; st.info = '';
   const salva = () => vscode.setState(st);
 
@@ -202,6 +205,76 @@
     return sezione(A.sez, h + `<div class="box">${box}</div>`);
   }
 
+  // ---- model choice (model routing): cheap model for simple jobs, the flagship for complex ones ----
+  // the provider of a model name (same matching as the prices: exact name, or the longest known name it starts with)
+  function fornitoreDelModello(modello) {
+    const n = norma(modello);
+    if (!n) return '';
+    let migliore = '', lung = 0;
+    for (const [fid, forn] of Object.entries((dati.listino && dati.listino.fornitori) || {})) {
+      for (const id of Object.keys(forn.modelli || {})) {
+        const k = norma(id);
+        if (k === n) return fid;
+        if (n.startsWith(k + '-') && k.length > lung) { migliore = fid; lung = k.length; }
+      }
+    }
+    // names like "claude-…", "gpt-…", "gemini-…" without a known price still tell the provider
+    const famiglie = [['anthropic', /^claude/], ['openai', /^(gpt|o\d|codex)/], ['google', /^gemini/], ['deepseek', /^deepseek/], ['alibaba', /^qwen/], ['moonshot', /^kimi/], ['zhipu', /^glm/], ['minimax', /^minimax/], ['xai', /^grok/]];
+    if (!migliore) for (const [fid, re] of famiglie) if (re.test(n)) return fid;
+    return migliore;
+  }
+  // the provider of a tool: its own, or (opencode, Cline, Aider…) the one of the models it used most
+  function fornitoreDi(f, sessioni) {
+    const proprio = infoFonte(f).fornitore;
+    if (proprio && proprio !== '*') return { id: proprio, dedotto: false };
+    const peso = {};
+    for (const s of sessioni) if (s.fonte === f) { const x = fornitoreDelModello(s.modello); if (x) peso[x] = (peso[x] || 0) + s.token; }
+    const migliore = Object.entries(peso).sort((a, b) => b[1] - a[1])[0];
+    return migliore ? { id: migliore[0], dedotto: true } : { id: 'anthropic', dedotto: false, ignoto: true };
+  }
+  const LIVELLI = ['leggero', 'medio', 'pesante'];
+  function esitoProva(fonti, sessioni) {
+    const S = L.scelta;
+    if (!testoProva.trim()) return `<p class="tenue piccolo">${esc(S.vuoto)}</p>`;
+    const e = SC.scegliLivello(testoProva);
+    const motivo = S.motivi[e.codice] ? S.motivi[e.codice](e.parola, e.caratteri) : e.motivo;
+    const modelli = fonti.map(f => {
+      const fo = fornitoreDi(f, sessioni), m = SC.modelliPerFornitore(fo.id, dati.listino);
+      return m ? `<p class="piccolo"><i class="punto" style="background:${colore(f)}"></i>${esc(infoFonte(f).breve)}: <b>${esc(m[e.livello].id)}</b></p>` : '';
+    }).join('');
+    return `<p><span class="livello ${e.livello}">${esc(S.livelli[e.livello])}</span> <span class="tenue piccolo">${esc(motivo)}</span></p>${modelli}`;
+  }
+  function sezioneScelta(sessioni) {
+    const S = L.scelta;
+    if (!SC || !S) return '';
+    const fonti = fonte === 'tutti' ? disponibili : [fonte];
+    let box = `<div class="testata"><button class="apri" data-azione="sceltaAperta">${st.sceltaAperta ? '▾' : '▸'} ${esc(S.apri)}</button></div>`;
+    if (st.sceltaAperta) {
+      const oggi = new Date(), meseK = `${oggi.getFullYear()}-${due(oggi.getMonth() + 1)}`;
+      box += `<p class="tenue piccolo">${esc(S.spiega)}</p>`;
+      box += `<label class="prova"><span>${esc(S.prova)}</span><textarea id="prova-scelta" rows="2" placeholder="${esc(S.segnaposto)}" spellcheck="false">${esc(testoProva)}</textarea></label>
+        <div id="esito-scelta" class="esito" aria-live="polite">${esitoProva(fonti, sessioni)}</div><p class="tenue piccolo">${esc(S.soloLocale)}</p>`;
+      for (const f of fonti) {
+        const fo = fornitoreDi(f, sessioni), m = SC.modelliPerFornitore(fo.id, dati.listino);
+        if (!m) continue;
+        const nomeForn = (dati.listino.fornitori[fo.id] || {}).nome || fo.id;
+        // this month's tokens of this tool, for the savings estimate
+        const t = { input: 0, output: 0, cacheScritta: 0, cacheLetta: 0 };
+        for (const s of sessioni) if (s.fonte === f) for (const [k, v] of Object.entries(s.giorni)) if (k.startsWith(meseK)) { t.input += v[3]; t.output += v[4]; t.cacheScritta += v[5]; t.cacheLetta += v[6]; }
+        const r = SC.stimaRisparmio(m, t), usato = t.input + t.output + t.cacheScritta + t.cacheLetta;
+        const cfg = SC.CONFIG[f];
+        box += `<div class="strumento"><p class="fornitore"><span><i class="punto" style="background:${colore(f)}"></i>${esc(infoFonte(f).nome)}</span><span class="tenue piccolo">${esc(S.modelliDi(nomeForn))}</span></p>
+          ${fo.ignoto ? `<p class="tenue piccolo">${esc(S.ignoto)}</p>` : fo.dedotto ? `<p class="tenue piccolo">${esc(S.dedotto(nomeForn))}</p>` : ''}
+          <div class="riga destra tenue piccolo">${esc(S.colonne)}</div>
+          ${LIVELLI.map(l => `<div class="riga"><span><span class="livello ${l}">${esc(S.livelli[l])}</span> ${esc(m[l].id)}</span><b>${prezzo(m[l].entrata)} · ${prezzo(m[l].uscita)}</b></div><p class="tenue piccolo uso">${esc(S.usi[l])}</p>`).join('')}
+          <p class="risparmio">${usato ? esc(S.risparmio(soldi(r.risparmio), soldi(r.sempreTop), soldi(r.conScelta))) : `<span class="tenue">${esc(S.nessunUso)}</span>`}</p>
+          ${f === 'claude' ? `<p class="tenue piccolo">${esc(S.claudeAuto)}</p>` : cfg ? `<p class="tenue piccolo">${esc(S.config(cfg.file, cfg.opzione))}</p>` : `<p class="tenue piccolo">${esc(S.manuale)}</p>`}</div>`;
+      }
+      box += `<p class="piccolo tenue">${esc(S.ipotesi)}</p><p class="piccolo">${esc(S.nota)}</p>`;
+    }
+    return sezione(S.sez, `<div class="box">${box}</div>`);
+  }
+
   // ---- the whole panel ----
   function disegna() {
     const app = document.getElementById('app');
@@ -249,6 +322,7 @@
     }
 
     if (dati.api) parti.push(sezioneApi(sessioni));
+    if (dati.listino) parti.push(sezioneScelta(sessioni));
 
     // sessions
     const conta = x => sessioni.filter(s => statoDi(s) === x).length;
@@ -311,7 +385,11 @@
     if (assenti.length) parti.push(`<p class="tenue piccolo">${esc(L.nonTrovati(assenti.join(', ')))}</p>`);
     parti.push(`<p class="tenue piccolo">${esc(L.notaStati)}</p><p class="tenue piccolo">${esc(L.privacy)}</p>`);
     parti.push(`<p class="tenue piccolo firma">${esc(L.creatoDa)}</p>`);   // firma dell'autore
+    // the panel is redrawn every 30 s: the "Try it" box keeps focus and cursor
+    const prima = document.activeElement && document.activeElement.id === 'prova-scelta' ? document.activeElement : null;
+    const cursore = prima ? [prima.selectionStart, prima.selectionEnd] : null;
     app.innerHTML = parti.join('');
+    if (prima) { const nuova = document.getElementById('prova-scelta'); if (nuova) { nuova.focus(); nuova.setSelectionRange(cursore[0], cursore[1]); } }
   }
 
   // ---- clicks ----
@@ -336,9 +414,17 @@
       case 'tutte': st.tutte = !st.tutte; break;
       case 'apiAperto': st.apiAperto = !st.apiAperto; break;
       case 'apiInfo': st.apiInfo = !st.apiInfo; break;
+      case 'sceltaAperta': st.sceltaAperta = !st.sceltaAperta; break;
       case 'link': vscode.postMessage({ tipo: 'link', quale: v }); return;
     }
     salva(); disegna();
+  });
+  // "Try it": the level and model appear while typing, computed here (no message to the extension, no network)
+  document.addEventListener('input', e => {
+    if (!e.target || e.target.id !== 'prova-scelta') return;
+    testoProva = e.target.value;
+    const out = document.getElementById('esito-scelta');
+    if (out && dati) out.innerHTML = esitoProva(fonte === 'tutti' ? disponibili : [fonte], scelte());
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && (st.menu || st.info)) { st.menu = ''; st.info = ''; disegna(); } });
 

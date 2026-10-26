@@ -10,6 +10,7 @@ A side panel for **VS Code, Cursor, Windsurf** (and any editor that installs VS 
 - **Sessions**: working, idle or blocked by a limit
 - **Limits** reported by the tools themselves (OpenAI Codex: 5-hour and weekly window)
 - **API credits and prices**: a **Top up and what it costs** box with the official API prices of Anthropic, OpenAI, Google, DeepSeek, Alibaba (Qwen), Moonshot (Kimi), Z.ai (GLM), MiniMax and xAI, read on their pricing pages on 26 October 2026, with links to those pages. Behind the small **ⓘ** icon: what today and this month would cost at API prices, and — if you write your own credits file — credit left, expiry dates and jobs done
+- **Model choice (model routing)**: for every tool found, the cheap / middle / flagship model of its provider with prices, what each level is for, an estimate of what you would save this month compared with always using the flagship, and a **Try it** box: describe a job and the panel tells you at once which level and model to use, and why. See [Model choice](#model-choice)
 
 ![The panel](images/pannello.png)
 
@@ -53,11 +54,11 @@ A small cache with the numbers is kept in the editor's extension storage so that
 
 ### From a `.vsix` file (VS Code, Cursor, Windsurf)
 
-1. Download `pannello-utilizzo-1.1.0.vsix` from the [Releases](https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/releases) page.
+1. Download `pannello-utilizzo-1.2.0.vsix` from the [Releases](https://github.com/y05mueller-jpg/claude-code-pannello-utilizzo/releases) page.
 2. Install it:
-   - **VS Code**: Extensions view (`Ctrl+Shift+X`) → `…` menu → **Install from VSIX…**, or run `code --install-extension pannello-utilizzo-1.1.0.vsix`
-   - **Cursor**: Extensions view → `…` menu → **Install from VSIX…** (or drag the file onto the Extensions view), or run `cursor --install-extension pannello-utilizzo-1.1.0.vsix`
-   - **Windsurf**: Extensions view → `…` menu → **Install from VSIX…**, or run `windsurf --install-extension pannello-utilizzo-1.1.0.vsix`
+   - **VS Code**: Extensions view (`Ctrl+Shift+X`) → `…` menu → **Install from VSIX…**, or run `code --install-extension pannello-utilizzo-1.2.0.vsix`
+   - **Cursor**: Extensions view → `…` menu → **Install from VSIX…** (or drag the file onto the Extensions view), or run `cursor --install-extension pannello-utilizzo-1.2.0.vsix`
+   - **Windsurf**: Extensions view → `…` menu → **Install from VSIX…**, or run `windsurf --install-extension pannello-utilizzo-1.2.0.vsix`
 3. Click the **bar-chart icon** in the activity bar (or run **Usage Panel: Open** from the Command Palette).
 
 ### Build it yourself
@@ -91,6 +92,23 @@ Add `"fornitore": "openai"` (or `google`, `deepseek`, `alibaba`, `moonshot`, `zh
 Optionally, any tool of yours can append one line per job to `uso.jsonl` in the same folder (`{ "data", "titolo", "modello", "costo" }`) to show spending.
 The panel never reads or needs an API key.
 
+## Model choice
+
+Cheap models for simple jobs, expensive ones for complex jobs. The rules are the same as in the Claude Code panel (`src/scelta.js`):
+
+| Level | Model | When |
+|---|---|---|
+| **Light** | the provider's cheapest | short jobs (under 600 characters) to search, find, list, read, summarize, count, rename, translate, format, check logs or status. Keywords (it/en): *cerca, trova, elenca, leggi, riassum, conta/contare/contami, rinomin, tradu, formatt, log, stato, search, find, list, read, summar, count, rename, translat, format, status* |
+| **Heavy** | the provider's flagship | design and planning, 3D, Blender, render, modelling, sites, backend, frontend, new apps, from scratch, refactor, migrations, security, hard debugging, optimization. Keywords: *progett, architettur, design, 3d, blender, render, modell, sito, backend, frontend, app nuova, da zero, refactor, migra, sicurezza, debug difficile, ottimizz, plan, architect, build, from scratch, website, security, migrate*. Also any job longer than 1500 characters. Heavy wins over the other levels |
+| **Medium** | a model in between | everything else |
+
+Models per provider come from the price list in `src/prezzi.js`: the cheapest, the one closest to the middle and the most expensive (aliases at the same price are skipped; with two models, light and medium share the cheaper one). Fixed choices where the list also has older or special models: Anthropic **Haiku / Sonnet / Opus 5.5**, OpenAI **gpt-6-luna / gpt-6.1-sol / gpt-6-astra**, Google **gemini-3.5-flash-lite / gemini-3.8-flash / gemini-4-argon**. Tools that can use any provider (opencode, Cline, Kilo Code, Roo Code, Continue, Aider) get the provider of the models they used most.
+
+The savings line is an **estimate** at API prices on the tokens counted this month, assuming about **40% light, 40% medium and 20% heavy** jobs.
+The **Try it** box works entirely in the panel: the text is not saved, not sent to the extension and never leaves the computer.
+
+The panel recommends the model; in the tools that allow it (Claude Code with subagents, the API helper) the choice is automatic, in the others you set the model in the tool. The only model option documented in this extension is Kimi CLI's `default_model` in `~/.kimi/config.toml`.
+
 ## How the numbers are counted
 
 - **Requests** are model replies; repeated lines of the same reply are counted once (by request id, message id or response id).
@@ -112,7 +130,7 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 
 ### In italiano
 
-Pannello laterale per VS Code, Cursor e Windsurf con messaggi, token, grafico giornaliero e utilizzo per chat di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider**, con qualsiasi modello (anche DeepSeek, Qwen, Kimi, GLM, MiniMax). Si adatta da solo: mostra solo gli strumenti che trova sul computer; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il box «Ricarica e quanto costa» ha i prezzi ufficiali di tutti i fornitori, letti il 26 ottobre 2026, con i dettagli dietro l'icona ⓘ.
+Pannello laterale per VS Code, Cursor e Windsurf con messaggi, token, grafico giornaliero e utilizzo per chat di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider**, con qualsiasi modello (anche DeepSeek, Qwen, Kimi, GLM, MiniMax). Si adatta da solo: mostra solo gli strumenti che trova sul computer; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. La sezione «Scelta del modello» consiglia per ogni strumento il modello leggero, medio o di punta del suo fornitore, con i prezzi, una stima del risparmio del mese (supponendo 40% lavori leggeri, 40% medi e 20% pesanti) e una casella «Prova: descrivi il lavoro» che dice subito livello, modello e motivo, tutto in locale. Il box «Ricarica e quanto costa» ha i prezzi ufficiali di tutti i fornitori, letti il 26 ottobre 2026, con i dettagli dietro l'icona ⓘ.
 Tutto viene contato sul tuo computer dai file che gli strumenti scrivono già: solo numeri, niente testo dei messaggi, niente rete, nessuna chiave API. Solo il lettore di Claude Code è stato provato su file veri; gli altri sono scritti dal codice sorgente ufficiale e provati con file inventati. Lingue: italiano, inglese, tedesco, francese, spagnolo.
 
 Creato da **Yannis Müller**, Fondatore di YouppyApps (y05mueller-jpg, y05.mueller@gmail.com), pubblicato per la prima volta il 26 ottobre 2026.
