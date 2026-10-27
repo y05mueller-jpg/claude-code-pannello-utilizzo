@@ -4,8 +4,8 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
-import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
+import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
+import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -265,10 +265,82 @@ function crediti(ap: Api | null): number {
   const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > ora)
   return Math.max(0, attivi.reduce((x, c) => x + (Number(c.dollari) || 0), 0) - (ap?.speso ?? 0))
 }
-function passaggioApi(L: Limite[], ap: Api | null): { attivo: boolean; piano: number; rimasto: number; manca: string } {
-  const piano = Math.max(0, ...L.map(l => l.percentUsed ?? 0)), rimasto = crediti(ap), soglia = ap?.soglia ?? 90
-  const manca = !ap?.presente ? 'crediti' : ap.auto === false ? 'spento' : rimasto <= 0.5 ? 'crediti' : !ap.chiave ? 'chiave' : !ap.agente ? 'agente' : ''
+function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): { attivo: boolean; piano: number; rimasto: number; manca: string } {
+  const piano = Math.max(0, ...L.map(l => l.percentUsed ?? 0)), rimasto = crediti(ap)
+  const manca = !ap?.presente ? 'crediti' : !acceso ? 'spento' : rimasto <= 0.5 ? 'crediti' : !ap.chiave ? 'chiave' : !ap.agente ? 'agente' : ''
   return { attivo: !manca && piano >= soglia, piano, rimasto, manca }
+}
+
+// ---- ripiego automatico sui crediti API (0.9.0) ----
+// Dalla soglia del piano (predefinita 95%, prima che finisca) o dopo un turno finito per limite raggiunto, il messaggio
+// di Yannis non va al modello: la mod lancia da sola l'aiutante agente.py, che paga con i crediti API (la chiave la legge lui).
+const ripiegoAuto = atom({ plugin: 'utilizzo', key: 'ripiegoAuto' } as const, true)
+const ripiegoSoglia = atom({ plugin: 'utilizzo', key: 'ripiegoSoglia' } as const, 95)
+const ripiego = atom({ plugin: 'utilizzo', key: 'ripiego' } as const, null as Ripiego | null)
+const SOGLIE_RIPIEGO = [80, 85, 90, 95, 98]
+const RIPIEGO = '(ripiego API)'   // il «comando» della spesa in attesa quando è il ripiego a chiedere l'ok
+const RE_LIMITE = /hit your .{0,20}limit|usage limit|rate.?limit|limit (?:reached|exceeded)|limite/i
+let limiteDa = 0             // quando un turno è finito con l'errore di limite (0 = no)
+let cartellaSessione = ''
+let ultimoTesto = ''         // l'ultimo messaggio di Yannis: si rilancia con l'aiutante se il turno finisce per limite
+let ripiegoInAttesa: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean } | null = null
+const storia: string[] = []  // gli ultimi messaggi della chat visti dal pannello, come contesto per l'aiutante
+const ricorda = (chi: string, t: string) => { if (t.trim()) { storia.push(`${chi}: ${t.trim().slice(0, 800)}`); storia.splice(0, Math.max(0, storia.length - 8)) } }
+const testiRipiego = () => TESTI_RIPIEGO[(linguaDa || 'it') as Lingua] ?? TESTI_RIPIEGO.it
+
+async function avviaRipiego($: any, r: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean }) {
+  const R = testiRipiego(), ap = await read($, api), rimasti = crediti(ap)
+  if (!ap?.agente) { await update($, ripiego, () => ({ stato: 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: R.manca('agente'), costo: '', aperto: true })); return }
+  const prima = storia.slice(0, -1)   // l'ultimo è il messaggio stesso
+  const compito = (r.testo + (prima.length ? `\n\n${R.contesto}\n${prima.join('\n')}` : '')).slice(0, 24000)
+  await update($, ripiego, () => ({ stato: 'in corso', titolo: r.titolo, budget: r.budget, rimasti, testo: '', costo: '', aperto: false }))
+  $.ui.toast(R.parte(dollari(rimasti)))
+  let out = '', err = '', codice: number | null = null
+  try {
+    const figlio = $.process.spawn({ argv: ['python', '-I', ap.agente, '--cartella', cartellaSessione || '.', '--titolo', r.titolo, '--budget', String(r.budget), '--giri', String(r.giri), '--modello', 'auto', compito] })
+    const it = figlio[Symbol.asyncIterator]()
+    for (;;) {
+      const { value, done } = await it.next()
+      if (done) { codice = value?.code ?? null; break }
+      if (value.stream === 'stdout') out += value.text; else err += value.text
+    }
+  } catch (x) { err += String((x as Error)?.message ?? x) }
+  const costo = /---\s*costo:\s*([\d.,]+)\s*\$/.exec(out)?.[1] ?? ''
+  const resoconto = (out.split(/\n---\s*costo:/)[0] ?? '').replace(/^---\s*modello:.*$/m, '').trim()
+  const ok = codice === 0 && !!resoconto
+  await update($, ripiego, () => ({ stato: ok ? 'finito' : 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: (ok ? resoconto : (resoconto + '\n' + err).trim() || R.fallito).slice(-6000), costo, aperto: true }))
+  $.ui.toast(ok ? R.finito(costo || '?') : R.fallito)
+  ricorda('Aiutante API', resoconto)
+  if (r.alzato) await update($, tettoLavoro, () => 0)   // lavoro finito: il tetto torna al predefinito
+  void aggiornaApi($)
+}
+
+// decide se il messaggio va all'aiutante: null = no (resta al piano), altrimenti il motivo mostrato al posto del turno
+async function ripiega($: any, testo: string, forza: boolean): Promise<string | null> {
+  const acceso = await read($, ripiegoAuto), soglia = await read($, ripiegoSoglia)
+  if (!acceso || !testo.trim()) return null
+  let L = await read($, limiti)
+  try { const u = await $.session.usage(); L = (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })) } catch (x) { /* gli ultimi letti */ }
+  const ap = await read($, api), p = passaggioApi(L, ap, soglia, acceso), R = testiRipiego()
+  if (limiteDa && (Date.now() - limiteDa > 6 * 3600000 || (p.piano > 0 && p.piano < soglia))) limiteDa = 0   // il piano si è azzerato
+  if (!forza && p.piano < soglia && !limiteDa) return null
+  if (p.manca) { $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
+  if ((await read($, ripiego))?.stato === 'in corso') return R.giaInCorso
+  const liv = livelloDi(testo), alzato = tettoDi(await read($, tettoLavoro))
+  const giri_ = alzato ? alzato.giri : giriEffettivi(await read($, giri), liv)
+  const budget = Math.max(0.5, Math.min(alzato ? alzato.usd : Math.max(tetto(giri_, liv), 0.5), Math.floor(p.rimasto * 100) / 100))
+  const titolo = testo.trim().split(/\s+/).slice(0, 6).join(' ').slice(0, 60)
+  const r = { testo, titolo, budget, giri: giri_, alzato: !!alzato }
+  // le regole del banner di spesa valgono uguale: sopra 1,5 $ e sopra il tetto scelto serve l'ok
+  const ora = Date.now(), nome = chiaveSpesa(titolo, RIPIEGO)
+  const approvata = (await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === budget)
+  if (budget > SOGLIA_APPROVAZIONE && budget > (await read($, tettoLavoro)) + 1e-9 && !approvata) {
+    ripiegoInAttesa = r
+    await update($, spesaInAttesa, () => ({ titolo, budget, comando: RIPIEGO, ora }))
+    return R.attesa(dollari(budget))
+  }
+  void avviaRipiego($, r)
+  return R.riga(dollari(p.rimasto))
 }
 
 // ---- disegni (SVG) ----
@@ -394,6 +466,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const avviata = await next(e)
     try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
+    try { const v = await $.store.get('ripiegoAuto'); if (typeof v === 'boolean') await update($, ripiegoAuto, () => v) } catch (x) { /* acceso */ }
+    try { const v = Number(await $.store.get('ripiegoSoglia')); if (SOGLIE_RIPIEGO.includes(v)) await update($, ripiegoSoglia, () => v) } catch (x) { /* 95% */ }
+    try { cartellaSessione = String((e as any).cwd ?? '') || (await $.process.run(['node', '-e', 'process.stdout.write(process.cwd())'], { timeoutMs: 10000 })).stdout.trim() } catch (x) { cartellaSessione = '' }
     try { const v = Number(await $.store.get('giri')); if (v === 0 || OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta consigliato */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
     try { linguaDa = await rilevaLingua($); T = TESTI[linguaDa] } catch (x) { linguaDa = '' }
@@ -418,6 +493,12 @@ export const register: Register = on => {
     if (e.command) return next(e)
     try {
       const testoPersona = String((e as any).text ?? '')
+      if ((e as any).origin?.kind === 'composer') {
+        ultimoTesto = testoPersona
+        ricorda('Yannis', testoPersona)
+        const motivo = await ripiega($, testoPersona, false)
+        if (motivo) return { drop: motivo }
+      }
       const liv = livelloDi(testoPersona)
       const alzato = tettoDi(await read($, tettoLavoro))   // tetto scelto accanto a Utilizzo: sostituisce quello calcolato
       tettoInUso = !!alzato
@@ -430,20 +511,6 @@ export const register: Register = on => {
       if (testoPersona.trim().length > 40 || alzato) {
         $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
         contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis${alzato ? ` (${TESTI_TETTO.it.alzato})` : ''}: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro).${alzato ? ` Se lanci agente.py usa --budget fino a ${max} e --giri ${g}; fino a ${max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
-      }
-      let L = await read($, limiti)
-      try { const u = await $.session.usage(); L = (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })) } catch (x) { /* gli ultimi letti */ }
-      const ap = await read($, api)
-      const p = passaggioApi(L, ap)
-      if (p.attivo && ap) {
-        const budget = Math.max(0.5, Math.min(max || 5, Math.floor(p.rimasto * 100) / 100))
-        contesto.push([
-          `[Pannello Utilizzo] Il piano Claude è al ${Math.round(p.piano)}%: dal ${ap.soglia ?? 90}% il lavoro si fa con i crediti API (rimasti circa ${p.rimasto.toFixed(2)} $), non con il piano.`,
-          `Non fare tu il lavoro di questo messaggio: scrivi il compito completo (con tutto il contesto che serve) in un file di testo temporaneo e fallo eseguire all'aiutante API con:`,
-          `python -I "${ap.agente}" --cartella "<cartella del lavoro>" --titolo "<nome breve>" --budget ${budget} --giri ${g} --modello auto --file "<file del compito>"`,
-          `Poi riporta alla persona il risultato e il costo che l'aiutante stampa. Usa meno passi possibile: ogni tuo passo consuma ancora il piano.`,
-          `Domande brevi o di una riga puoi risponderle direttamente. Se l'aiutante fallisce per crediti finiti, continua con il piano e dillo.`,
-        ].join('\n'))
       }
       return contesto.length ? next({ ...e, context: [...(e.context ?? []), ...contesto] }) : next(e)
     } catch (x) { return next(e) }
@@ -465,6 +532,18 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
     if (e.agentId !== undefined) return r
+    try {
+      if ((e as any).reason === 'error') {
+        let pieno = false
+        try { pieno = ((await $.session.usage()).rateLimits ?? []).some((x: Limite) => (x.percentUsed ?? 0) >= 100) } catch (x) { /* solo il testo */ }
+        if (RE_LIMITE.test(String(e.answer ?? '')) || pieno) {
+          limiteDa = Date.now()
+          tettoInUso = false   // il tetto resta per il lavoro rilanciato con l'aiutante
+          const motivo = await ripiega($, ultimoTesto, true)
+          if (motivo) $.ui.toast(motivo)
+        }
+      } else ricorda('Claude', String(e.answer ?? ''))
+    } catch (x) { /* resta il messaggio di Claude Code */ }
     if (tettoInUso) { tettoInUso = false; await update($, tettoLavoro, () => 0) }   // lavoro finito: torna il predefinito
     if (usdInizio >= 0) {
       const costo = Math.max(0, (await usdOra($)) - usdInizio)
@@ -571,8 +650,22 @@ export const register: Register = on => {
       }
       else imposta(Number(v))
     }
+    const rip = await read($, ripiego), R = testiRipiego()
+    const rigaRipiego = rip ? (
+      <Box key="ripiego" flexDirection="column">
+        <Box flexDirection="row" gap={1}>
+          <Text color={rip.stato === 'errore' ? '#ef4444' : rip.stato === 'finito' ? '#22c55e' : '#3b82f6'} wrap="truncate-end">
+            {rip.stato === 'in corso' ? R.riga(dollari(rip.rimasti)) : rip.stato === 'finito' ? R.fatto(rip.costo || '?') : R.fallito}
+          </Text>
+          {rip.stato === 'in corso' ? null : <Button key="ripiego-apri" label={rip.aperto ? R.nascondi : R.resoconto} onPress={() => { void update($, ripiego, (v: Ripiego | null) => (v ? { ...v, aperto: !v.aperto } : v)) }} />}
+          {rip.stato === 'in corso' ? null : <Button key="ripiego-chiudi" label="×" onPress={() => { void update($, ripiego, () => null) }} />}
+        </Box>
+        {rip.aperto && rip.testo ? <Text key="ripiego-testo" wrap="wrap">{rip.testo}</Text> : null}
+      </Box>
+    ) : null
     return (
       <Box flexDirection="column">
+        {rigaRipiego}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1} justifyContent="space-between">
           {attesa ? (
             <Box key="spesa-banner" flexDirection="row" gap={1}>
@@ -583,10 +676,12 @@ export const register: Register = on => {
                 const ora = Date.now()
                 await update($, spesaApprovate, (v: SpesaApprovata[]) => [...(v ?? []).filter(a => ora - a.ora < APPROVAZIONE_MS), { titolo: chiaveSpesa(attesa.titolo, attesa.comando), budget: attesa.budget, ora }])
                 await update($, spesaInAttesa, () => null)
+                if (attesa.comando === RIPIEGO) { const r = ripiegoInAttesa; ripiegoInAttesa = null; if (r) void avviaRipiego($, r); return }
                 void $.prompt.submit({ text: S.ok(budget, titolo) })
               }} />
               <Button key="spesa-no" label={S.no} onPress={async () => {
                 await update($, spesaInAttesa, () => null)
+                if (attesa.comando === RIPIEGO) { ripiegoInAttesa = null; return }
                 void $.prompt.submit({ text: S.rifiuto(budget, titolo) })
               }} />
             </Box>
@@ -638,6 +733,7 @@ export const register: Register = on => {
     const { Box, Text, Button, Select, Svg, Client, Link } = $.ui.resolve(e) as any
     const A = TESTI_API[(linguaDa || 'it') as Lingua] ?? TESTI_API.it
     const ap = await read($, api), apApert = await read($, apiAperto), apInfo = await read($, apiInfo)
+    const autoRip = await read($, ripiegoAuto), sogliaRip = await read($, ripiegoSoglia)
     const X = TESTI_ALTRI[(linguaDa || 'it') as Lingua] ?? TESTI_ALTRI.en
     const alt = await read($, altri), str = await read($, strumento), przAperti = await read($, prezziAperti), forn = await read($, fornitore)
     const trovati = Object.keys(alt?.fonti ?? {})
@@ -864,11 +960,21 @@ export const register: Register = on => {
       sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>,
         (() => {
           if (!ap?.presente) return null
-          const pa = passaggioApi(L, ap)
+          const pa = passaggioApi(L, ap, sogliaRip, autoRip)
           const testo = pa.attivo ? X.apiAttivo(Math.round(pa.piano))
             : pa.manca === 'chiave' ? X.apiChiave : pa.manca === 'agente' ? X.apiAgente : pa.manca === 'crediti' ? X.apiFiniti
-              : pa.manca === 'spento' ? X.apiSpento : X.apiPronto(ap.soglia ?? 90)
-          return <Text size="caption" color={pa.attivo ? '#22c55e' : pa.manca && pa.manca !== 'spento' ? '#f59e0b' : undefined} dimColor={!pa.attivo && !pa.manca}>{testo}</Text>
+              : pa.manca === 'spento' ? X.apiSpento : X.apiPronto(sogliaRip)
+          const RR = testiRipiego()
+          return (
+            <Box flexDirection="column">
+              <Text size="caption" color={pa.attivo ? '#22c55e' : pa.manca && pa.manca !== 'spento' ? '#f59e0b' : undefined} dimColor={!pa.attivo && !pa.manca}>{testo}</Text>
+              <Box flexDirection="row" gap={1} flexWrap="wrap">
+                <Button key="ripiego-auto" label={`${autoRip ? '☑' : '☐'} ${RR.interruttore}`} onPress={async () => { const v = !autoRip; await update($, ripiegoAuto, () => v); try { await $.store.set('ripiegoAuto', v) } catch (x) { /* solo questa chat */ } }} />
+                {Select ? <Select key="ripiego-soglia" label={RR.soglia} options={SOGLIE_RIPIEGO.map(s => ({ value: String(s), label: `${s}%` }))} value={String(sogliaRip)}
+                  onSelect={async (v: string) => { const n = Number(v); await update($, ripiegoSoglia, () => n); try { await $.store.set('ripiegoSoglia', n) } catch (x) { /* solo questa chat */ } }} /> : null}
+              </Box>
+            </Box>
+          )
         })()),
       (ap as any)?.presente ? sezioneApi : null,
       sezioneGiri,

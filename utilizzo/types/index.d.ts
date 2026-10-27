@@ -47,8 +47,11 @@ export type SpesaInAttesa = { titolo: string; budget: number; comando: string; o
 // ok dato nel banner: vale per titolo + budget per 30 minuti (titolo in minuscolo)
 export type SpesaApprovata = { titolo: string; budget: number; ora: number }
 
+// ripiego automatico sui crediti API: il lavoro che l'aiutante agente.py sta facendo o ha finito (riga sopra la chat)
+export type Ripiego = { stato: 'in corso' | 'finito' | 'errore'; titolo: string; budget: number; rimasti: number; testo: string; costo: string; aperto: boolean }
+
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAltro: boolean; tettoErrore: string; tettoDigitato: string }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAltro: boolean; tettoErrore: string; tettoDigitato: string; ripiegoAuto: boolean; ripiegoSoglia: number; ripiego: Ripiego | null }
   }
 }

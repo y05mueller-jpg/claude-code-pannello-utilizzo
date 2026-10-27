@@ -443,7 +443,7 @@ export type TestiAltri = {
 }
 const altriIt: TestiAltri = {
   apiAttivo: p => `Piano al ${p}%: i lavori passano ai crediti API`, apiPronto: s => `Dal ${s}% del piano i lavori passano da soli ai crediti API`,
-  apiChiave: 'Passaggio ai crediti API dal 90%: manca il file della chiave (chiave.txt)', apiAgente: 'Passaggio ai crediti API dal 90%: manca l’aiutante agente.py',
+  apiChiave: 'Passaggio ai crediti API: manca il file della chiave (chiave.txt)', apiAgente: 'Passaggio ai crediti API: manca l’aiutante agente.py',
   apiFiniti: 'Crediti API finiti o scaduti: si continua con il piano', apiSpento: 'Passaggio automatico ai crediti API spento',
   strumento: 'Strumento', tutti: 'Tutti',
   nessuno: n => `Altri strumenti: nessuno trovato su questo PC. Compaiono qui da soli appena li usi: ${n}.`,
@@ -455,7 +455,7 @@ const altriIt: TestiAltri = {
 }
 const altriEn: TestiAltri = {
   apiAttivo: p => `Plan at ${p}%: jobs now use API credits`, apiPronto: s => `From ${s}% of the plan, jobs switch to API credits by themselves`,
-  apiChiave: 'Switch to API credits at 90%: the key file (chiave.txt) is missing', apiAgente: 'Switch to API credits at 90%: the agente.py helper is missing',
+  apiChiave: 'Switch to API credits: the key file (chiave.txt) is missing', apiAgente: 'Switch to API credits: the agente.py helper is missing',
   apiFiniti: 'API credits used up or expired: the plan is used', apiSpento: 'Automatic switch to API credits is off',
   strumento: 'Tool', tutti: 'All',
   nessuno: n => `Other tools: none found on this computer. They show up here by themselves as soon as you use them: ${n}.`,
@@ -467,7 +467,7 @@ const altriEn: TestiAltri = {
 }
 const altriDe: TestiAltri = {
   apiAttivo: p => `Plan bei ${p}%: Aufgaben laufen jetzt über API-Guthaben`, apiPronto: s => `Ab ${s}% des Plans laufen Aufgaben von selbst über API-Guthaben`,
-  apiChiave: 'Wechsel zu API-Guthaben ab 90%: die Schlüsseldatei (chiave.txt) fehlt', apiAgente: 'Wechsel zu API-Guthaben ab 90%: der Helfer agente.py fehlt',
+  apiChiave: 'Wechsel zu API-Guthaben: die Schlüsseldatei (chiave.txt) fehlt', apiAgente: 'Wechsel zu API-Guthaben: der Helfer agente.py fehlt',
   apiFiniti: 'API-Guthaben aufgebraucht oder abgelaufen: der Plan wird genutzt', apiSpento: 'Automatischer Wechsel zu API-Guthaben ist aus',
   strumento: 'Werkzeug', tutti: 'Alle',
   nessuno: n => `Andere Werkzeuge: keine auf diesem Computer gefunden. Sie erscheinen hier von selbst, sobald du sie benutzt: ${n}.`,
@@ -479,7 +479,7 @@ const altriDe: TestiAltri = {
 }
 const altriFr: TestiAltri = {
   apiAttivo: p => `Forfait à ${p} % : les tâches passent aux crédits API`, apiPronto: s => `Dès ${s} % du forfait, les tâches passent seules aux crédits API`,
-  apiChiave: 'Passage aux crédits API à 90 % : le fichier de clé (chiave.txt) manque', apiAgente: 'Passage aux crédits API à 90 % : l’assistant agente.py manque',
+  apiChiave: 'Passage aux crédits API : le fichier de clé (chiave.txt) manque', apiAgente: 'Passage aux crédits API : l’assistant agente.py manque',
   apiFiniti: 'Crédits API épuisés ou expirés : le forfait est utilisé', apiSpento: 'Passage automatique aux crédits API désactivé',
   strumento: 'Outil', tutti: 'Tous',
   nessuno: n => `Autres outils : aucun trouvé sur cet ordinateur. Ils apparaissent ici tout seuls dès que tu les utilises : ${n}.`,
@@ -491,7 +491,7 @@ const altriFr: TestiAltri = {
 }
 const altriEs: TestiAltri = {
   apiAttivo: p => `Plan al ${p}%: las tareas pasan a los créditos API`, apiPronto: s => `Desde el ${s}% del plan, las tareas pasan solas a los créditos API`,
-  apiChiave: 'Cambio a créditos API al 90%: falta el archivo de la clave (chiave.txt)', apiAgente: 'Cambio a créditos API al 90%: falta el ayudante agente.py',
+  apiChiave: 'Cambio a créditos API: falta el archivo de la clave (chiave.txt)', apiAgente: 'Cambio a créditos API: falta el ayudante agente.py',
   apiFiniti: 'Créditos API agotados o caducados: se usa el plan', apiSpento: 'Cambio automático a créditos API desactivado',
   strumento: 'Herramienta', tutti: 'Todas',
   nessuno: n => `Otras herramientas: ninguna en este ordenador. Aparecen aquí solas en cuanto las uses: ${n}.`,
@@ -502,3 +502,29 @@ const altriEs: TestiAltri = {
   nota: 'El coste real también depende de la memoria releída (caché), que cuesta mucho menos.',
 }
 export const TESTI_ALTRI: Record<Lingua, TestiAltri> = { it: altriIt, en: altriEn, de: altriDe, fr: altriFr, es: altriEs }
+
+// ripiego automatico sui crediti API (0.9.0): la riga sopra la chat, i toast e l'interruttore nel pannello
+type TestiRipiego = {
+  riga: (r: string) => string; parte: (r: string) => string; fatto: (c: string) => string; finito: (c: string) => string; fallito: string
+  attesa: (b: string) => string; giaInCorso: string; manca: (m: string) => string; resoconto: string; nascondi: string
+  interruttore: string; soglia: string; contesto: string
+}
+const ripiegoIt: TestiRipiego = {
+  riga: r => `Piano finito → lavoro con i crediti API (${r} rimasti)…`, parte: r => `Piano quasi finito: lavoro con i crediti API (${r} rimasti)`,
+  fatto: c => `✓ Lavoro con i crediti API finito · costo ${c} $`, finito: c => `Lavoro con i crediti API finito: costo ${c} $`,
+  fallito: 'Lavoro con i crediti API non riuscito', attesa: b => `Ripiego sui crediti API: serve l’ok nel banner (spesa ${b})`,
+  giaInCorso: 'L’aiutante API sta già lavorando: aspetta la fine (riga sopra la chat)',
+  manca: m => `Ripiego sui crediti API non possibile: ${m === 'agente' ? 'manca agente.py' : m === 'chiave' ? 'manca chiave.txt' : 'crediti API finiti o scaduti'}. Si continua con il piano.`,
+  resoconto: 'Resoconto', nascondi: 'Nascondi', interruttore: 'Ripiego su API automatico', soglia: 'Dal',
+  contesto: 'Ultimi messaggi della chat (contesto):',
+}
+const ripiegoEn: TestiRipiego = {
+  riga: r => `Plan used up → working with API credits (${r} left)…`, parte: r => `Plan almost used up: working with API credits (${r} left)`,
+  fatto: c => `✓ API-credit job done · cost $${c}`, finito: c => `API-credit job done: cost $${c}`,
+  fallito: 'API-credit job failed', attesa: b => `Switch to API credits: approve in the banner (spend ${b})`,
+  giaInCorso: 'The API helper is already working: wait for it to finish (line above the chat)',
+  manca: m => `Cannot switch to API credits: ${m === 'agente' ? 'agente.py is missing' : m === 'chiave' ? 'chiave.txt is missing' : 'API credits used up or expired'}. The plan is used.`,
+  resoconto: 'Report', nascondi: 'Hide', interruttore: 'Automatic switch to API', soglia: 'From',
+  contesto: 'Latest chat messages (context):',
+}
+export const TESTI_RIPIEGO: Record<Lingua, TestiRipiego> = { it: ripiegoIt, en: ripiegoEn, de: ripiegoEn, fr: ripiegoEn, es: ripiegoEn }

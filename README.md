@@ -44,6 +44,10 @@ If a job run through the API helper (`agente.py`) has a `--budget` above **$1.5*
 ## Cap for the current job
 Left of the **▤ Usage** button above the message box, **Cap: ×1** cycles through $2 / 3 rounds, $4 / 5, $8 / 8, $15 / 12, $25 / 16 (✕ goes back to default). The chosen cap and rounds replace the calculated ones in the text added to each message ("cap raised by Yannis for this job") and in the `agente.py --budget/--giri` command. A `--budget` up to the cap counts as already approved; above it the banner stays. It applies to this chat and resets when the job ends.
 
+## Automatic switch to API credits (0.9.0)
+
+When the 5-hour or weekly plan reaches the threshold (95% by default, adjustable in the panel), or a turn ends with the plan limit error, your message does not go to the model: the mod itself runs the API helper `agente.py` with your message, the latest chat messages, the cap and loops chosen with **Cap**. A line above the chat shows the job; at the end the report and the cost (plus a toast). The spend banner rules still apply. Toggle: **Automatic switch to API** in the panel. Missing credits or `agente.py`: the reason is shown and the plan is used.
+
 ## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
