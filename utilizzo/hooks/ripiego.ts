@@ -1,4 +1,4 @@
-// Regole del ripiego sui crediti API (0.9.1), senza dipendenze: le usa register.tsx e le prova ripiego.test.ts.
+// Regole del ripiego sui crediti API (0.9.1-0.9.2), senza dipendenze: le usa register.tsx e le prova ripiego.test.ts.
 import type { Limite } from '../types'
 
 // Le finestre ancora valide: quelle nuove per tipo, più quelle già lette di un tipo che manca adesso
@@ -36,3 +36,28 @@ export function budgetRipiego(peso: Peso, tettoPesante: number, rimasto: number)
   const b = peso === 'breve' ? BUDGET_BREVE : peso === 'medio' ? BUDGET_MEDIO : tettoPesante
   return Math.max(BUDGET_BREVE, Math.min(b, Math.floor(rimasto * 100) / 100))
 }
+
+// ---- 0.9.2: decisioni del ripiego, separate per poterle provare ----
+// L'errore di limite in qualsiasi forma: «You've hit your weekly limit», «5-hour limit reached», «usage limit», «out of extra usage»…
+export const RE_LIMITE = /hit your .{0,30}limit|reached your .{0,30}limit|(?:usage|weekly|5-hour|five.hour|session|opus|sonnet) limit|limit (?:reached|exceeded)|rate.?limit|out of (?:extra )?usage|limite/i
+// le forme sicure: valgono anche se il turno non è segnato come errore, purché la risposta sia corta (il solo avviso)
+const RE_LIMITE_FORTE = /hit your .{0,30}limit|reached your .{0,30}limit|limit reached|out of (?:extra )?usage/i
+export function eErroreLimite(reason: string, answer: string): boolean {
+  const a = String(answer ?? '')
+  return (reason === 'error' && RE_LIMITE.test(a)) || (reason !== 'refusal' && a.trim().length <= 300 && RE_LIMITE_FORTE.test(a))
+}
+// fin quando vale il limite raggiunto: l'azzeramento della finestra piena più lontana; se non è nota, 5 ore
+export function limiteFino(L: Limite[], soglia: number, ora = Date.now()): number {
+  const fine = L.filter(l => (Number(l.percentUsed) || 0) >= soglia && l.resetsAt).map(l => Date.parse(l.resetsAt!)).filter(t => t > ora)
+  return fine.length ? Math.max(...fine) : ora + 5 * 3600000
+}
+// il messaggio va all'aiutante? interruttore acceso e: piano oltre la soglia, o limite raggiunto ancora valido, o rilancio dopo l'errore
+export function deveRipiegare(acceso: boolean, piano: number, soglia: number, limiteAttivo: boolean, forza = false): boolean {
+  return acceso && (forza || piano >= soglia || limiteAttivo)
+}
+// comandi (/utilizzo, /compact…), comandi di shell (!…) e messaggi interni non si deviano mai
+export function nonDeviare(e: { text?: string; command?: unknown; isMeta?: boolean }): boolean {
+  return !!e.command || !!e.isMeta || /^\s*[/!]/.test(String(e.text ?? ''))
+}
+// scritto da Yannis: terminale, telefono (bridge) o app desktop (sdk); il resto (altre sessioni, plugin, notifiche) no
+export const daYannisOrigine = (kind?: string) => !kind || kind === 'composer' || kind === 'bridge' || kind === 'sdk'

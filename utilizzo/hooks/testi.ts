@@ -506,14 +506,15 @@ export const TESTI_ALTRI: Record<Lingua, TestiAltri> = { it: altriIt, en: altriE
 // ripiego automatico sui crediti API (0.9.0): la riga sopra la chat, i toast e l'interruttore nel pannello
 type TestiRipiego = {
   riga: (r: string) => string; parte: (r: string) => string; fatto: (c: string) => string; finito: (c: string) => string; fallito: string
-  attesa: (b: string) => string; giaInCorso: string; manca: (m: string) => string; resoconto: string; nascondi: string
+  attesa: (b: string) => string; giaInCorso: string; giaFatto: string; ferma: string; fermato: string; manca: (m: string) => string; resoconto: string; nascondi: string
   interruttore: string; soglia: string; contesto: string
 }
 const ripiegoIt: TestiRipiego = {
   riga: r => `Piano finito → lavoro con i crediti API (${r} rimasti)…`, parte: r => `Piano quasi finito: lavoro con i crediti API (${r} rimasti)`,
   fatto: c => `✓ Lavoro con i crediti API finito · costo ${c} $`, finito: c => `Lavoro con i crediti API finito: costo ${c} $`,
   fallito: 'Lavoro con i crediti API non riuscito', attesa: b => `Ripiego sui crediti API: serve l’ok nel banner (spesa ${b})`,
-  giaInCorso: 'L’aiutante API sta già lavorando: aspetta la fine (riga sopra la chat)',
+  giaInCorso: 'L’aiutante API sta già lavorando: questo messaggio non è partito, rimandalo quando finisce (riga sopra la chat)',
+  giaFatto: 'Questo messaggio l’ha già fatto l’aiutante API: il resoconto è sopra la chat', ferma: 'Ferma', fermato: 'Lavoro con i crediti API fermato',
   manca: m => `Ripiego sui crediti API non possibile: ${m === 'agente' ? 'manca agente.py' : m === 'chiave' ? 'manca chiave.txt' : 'crediti API finiti o scaduti'}. Si continua con il piano.`,
   resoconto: 'Resoconto', nascondi: 'Nascondi', interruttore: 'Ripiego su API automatico', soglia: 'Dal',
   contesto: 'Ultimi messaggi della chat (contesto):',
@@ -522,7 +523,8 @@ const ripiegoEn: TestiRipiego = {
   riga: r => `Plan used up → working with API credits (${r} left)…`, parte: r => `Plan almost used up: working with API credits (${r} left)`,
   fatto: c => `✓ API-credit job done · cost $${c}`, finito: c => `API-credit job done: cost $${c}`,
   fallito: 'API-credit job failed', attesa: b => `Switch to API credits: approve in the banner (spend ${b})`,
-  giaInCorso: 'The API helper is already working: wait for it to finish (line above the chat)',
+  giaInCorso: 'The API helper is already working: this message was not sent, send it again when it finishes (line above the chat)',
+  giaFatto: 'The API helper already did this message: the report is above the chat', ferma: 'Stop', fermato: 'API-credit job stopped',
   manca: m => `Cannot switch to API credits: ${m === 'agente' ? 'agente.py is missing' : m === 'chiave' ? 'chiave.txt is missing' : 'API credits used up or expired'}. The plan is used.`,
   resoconto: 'Report', nascondi: 'Hide', interruttore: 'Automatic switch to API', soglia: 'From',
   contesto: 'Latest chat messages (context):',

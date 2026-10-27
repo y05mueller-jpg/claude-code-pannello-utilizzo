@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { budgetRipiego, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -282,8 +282,11 @@ const ripiegoSoglia = atom({ plugin: 'utilizzo', key: 'ripiegoSoglia' } as const
 const ripiego = atom({ plugin: 'utilizzo', key: 'ripiego' } as const, null as Ripiego | null)
 const SOGLIE_RIPIEGO = [80, 85, 90, 95, 98]
 const RIPIEGO = '(ripiego API)'   // il «comando» della spesa in attesa quando è il ripiego a chiedere l'ok
-const RE_LIMITE = /hit your .{0,20}limit|usage limit|rate.?limit|limit (?:reached|exceeded)|limite/i
-let limiteDa = 0             // quando un turno è finito con l'errore di limite (0 = no)
+let limiteFinoA = 0          // limite raggiunto (errore del turno) valido fino a quest'ora (0 = no)
+let occupato = false         // un solo aiutante alla volta: si segna subito, senza attese in mezzo (niente doppio lancio)
+let fermaFiglio: (() => void) | null = null   // il pulsante Ferma della riga sopra la chat
+let figlioDa = 0                              // da quando lavora l'aiutante (oltre 2 ore si ferma)
+let lanciato = { testo: '', ora: 0 }          // l'ultimo messaggio dato all'aiutante: il ritento dello stesso non riparte
 let cartellaSessione = ''
 let ultimoTesto = ''         // l'ultimo messaggio di Yannis: si rilancia con l'aiutante se il turno finisce per limite
 let ripiegoInAttesa: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean } | null = null
@@ -292,16 +295,25 @@ const ricorda = (chi: string, t: string) => { if (t.trim()) { storia.push(`${chi
 const testiRipiego = () => TESTI_RIPIEGO[(linguaDa || 'it') as Lingua] ?? TESTI_RIPIEGO.it
 
 async function avviaRipiego($: any, r: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean }) {
+  if (occupato) { $.ui.toast(testiRipiego().giaInCorso); return }
+  occupato = true
+  lanciato = { testo: r.testo.trim(), ora: Date.now() }
+  try { await lavoraRipiego($, r) } finally { occupato = false; fermaFiglio = null }
+}
+async function lavoraRipiego($: any, r: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean }) {
   const R = testiRipiego(), ap = await read($, api), rimasti = crediti(ap)
   if (!ap?.agente) { await update($, ripiego, () => ({ stato: 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: R.manca('agente'), costo: '', aperto: true })); return }
   const prima = storia.slice(0, -1)   // l'ultimo è il messaggio stesso
   const compito = (r.testo + (prima.length ? `\n\n${R.contesto}\n${prima.join('\n')}` : '')).slice(0, 24000)
   await update($, ripiego, () => ({ stato: 'in corso', titolo: r.titolo, budget: r.budget, rimasti, testo: '', costo: '', aperto: false }))
   $.ui.toast(R.parte(dollari(rimasti)))
-  let out = '', err = '', codice: number | null = null
+  let out = '', err = '', codice: number | null = null, fermato = false
   try {
     const figlio = $.process.spawn({ argv: ['python', '-I', ap.agente, '--cartella', cartellaSessione || '.', '--titolo', r.titolo, '--budget', String(r.budget), '--giri', String(r.giri), '--modello', 'auto', compito] })
     const it = figlio[Symbol.asyncIterator]()
+    // Ferma (o 2 ore senza fine, al messaggio dopo): chiudere il flusso termina il figlio
+    fermaFiglio = () => { fermato = true; void it.return?.() }
+    figlioDa = Date.now()
     for (;;) {
       const { value, done } = await it.next()
       if (done) { codice = value?.code ?? null; break }
@@ -311,8 +323,8 @@ async function avviaRipiego($: any, r: { testo: string; titolo: string; budget: 
   const costo = /---\s*costo:\s*([\d.,]+)\s*\$/.exec(out)?.[1] ?? ''
   const resoconto = (out.split(/\n---\s*costo:/)[0] ?? '').replace(/^---\s*modello:.*$/m, '').trim()
   const ok = codice === 0 && !!resoconto
-  await update($, ripiego, () => ({ stato: ok ? 'finito' : 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: (ok ? resoconto : (resoconto + '\n' + err).trim() || R.fallito).slice(-6000), costo, aperto: true }))
-  $.ui.toast(ok ? R.finito(costo || '?') : R.fallito)
+  await update($, ripiego, () => ({ stato: ok ? 'finito' : 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: (ok ? resoconto : (fermato ? R.fermato + '\n' : '') + ((resoconto + '\n' + err).trim() || R.fallito)).slice(-6000), costo, aperto: true }))
+  $.ui.toast(ok ? R.finito(costo || '?') : fermato ? R.fermato : R.fallito)
   ricorda('Aiutante API', resoconto)
   if (r.alzato) await update($, tettoLavoro, () => 0)   // lavoro finito: il tetto torna al predefinito
   void aggiornaApi($)
@@ -332,11 +344,15 @@ async function ripiega($: any, testo: string, forza: boolean, daYannis = true): 
   if (!acceso || !testo.trim()) return null
   let L = await read($, limiti)
   try { L = await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)) } catch (x) { /* gli ultimi letti */ }
+  try { modelloInUso = String((await $.session.model()) ?? '') || modelloInUso } catch (x) { /* quello già letto */ }
   const ap = await read($, api), p = passaggioApi(L, ap, soglia, acceso), R = testiRipiego()
-  if (limiteDa && (Date.now() - limiteDa > 6 * 3600000 || (p.piano > 0 && p.piano < soglia))) limiteDa = 0   // il piano si è azzerato
-  if (!forza && p.piano < soglia && !limiteDa) return null
+  if (limiteFinoA && Date.now() > limiteFinoA) limiteFinoA = 0   // la finestra piena si è azzerata
+  if (!deveRipiegare(acceso, p.piano, soglia, limiteFinoA > 0, forza)) return null
   if (p.manca) { if (daYannis) $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
-  if ((await read($, ripiego))?.stato === 'in corso') return daYannis ? R.giaInCorso : null   // le notifiche non si perdono
+  if (occupato && Date.now() - figlioDa > 2 * 3600000) fermaFiglio?.()   // bloccato da più di 2 ore: si ferma
+  if (occupato || (await read($, ripiego))?.stato === 'in corso') return daYannis ? R.giaInCorso : null   // le notifiche non si perdono
+  // il ritento dello stesso messaggio (dopo l'errore di limite il lavoro è già partito da solo) non lo rifà: se è fallito sì
+  if (daYannis && testo.trim() === lanciato.testo && Date.now() - lanciato.ora < 30 * 60000 && (await read($, ripiego))?.stato === 'finito') return R.giaFatto
   // budget proporzionato: breve 0,3 $, medio 1 $, pesante il tetto scelto (o quello calcolato); il tetto vale solo per i pesanti
   const peso = pesoDi(testo, livelloDi(testo), daYannis), scelto = tettoDi(await read($, tettoLavoro))
   const alzato = peso === 'pesante' ? scelto : undefined
@@ -352,7 +368,8 @@ async function ripiega($: any, testo: string, forza: boolean, daYannis = true): 
     await update($, spesaInAttesa, () => ({ titolo, budget, comando: RIPIEGO, ora }))
     return R.attesa(dollari(budget))
   }
-  void avviaRipiego($, r)
+  if (occupato) return daYannis ? R.giaInCorso : null   // un altro messaggio è partito nel frattempo
+  void avviaRipiego($, r)   // segna «occupato» subito, prima di ogni attesa
   return R.riga(dollari(p.rimasto))
 }
 
@@ -504,11 +521,11 @@ export const register: Register = on => {
 
   // ogni messaggio della persona: se il piano è oltre la soglia e ci sono crediti API, il lavoro va all'aiutante API
   on('prompt.submit', async ($, e, next) => {
-    if (e.command) return next(e)
+    if (nonDeviare(e as any)) return next(e)   // /utilizzo, /compact, !comandi e messaggi interni vanno sempre al motore
     try {
       const testoPersona = String((e as any).text ?? '')
       // scritto da Yannis: al terminale, dal telefono o dall'app desktop (che arriva come «sdk»); il resto viene da altre sessioni o plugin
-      const tipo = (e as any).origin?.kind, daYannis = !tipo || tipo === 'composer' || tipo === 'bridge' || tipo === 'sdk'
+      const daYannis = daYannisOrigine((e as any).origin?.kind)
       if (daYannis) { ultimoTesto = testoPersona; ricorda('Yannis', testoPersona) }
       const motivo = await ripiega($, testoPersona, false, daYannis)
       if (motivo) return { drop: motivo }
@@ -556,16 +573,15 @@ export const register: Register = on => {
     const r = await next(e)
     if (e.agentId !== undefined) return r
     try {
-      if ((e as any).reason === 'error') {
-        let pieno = false
-        try { pieno = pianoMassimo(await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)), modelloInUso).piano >= 100 } catch (x) { /* solo il testo */ }
-        if (RE_LIMITE.test(String(e.answer ?? '')) || pieno) {
-          limiteDa = Date.now()
+      const motivoFine = String((e as any).reason ?? ''), risposta = String(e.answer ?? '')
+      let L: Limite[] = (await read($, limiti)) ?? [], pieno = false
+      if (motivoFine === 'error') try { L = await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)); pieno = pianoMassimo(L, modelloInUso).piano >= 100 } catch (x) { /* solo il testo */ }
+      if (eErroreLimite(motivoFine, risposta) || pieno) {
+          limiteFinoA = limiteFino(L, await read($, ripiegoSoglia))
           tettoInUso = false   // il tetto resta per il lavoro rilanciato con l'aiutante
           const motivo = await ripiega($, ultimoTesto, true)
           if (motivo) $.ui.toast(motivo)
-        }
-      } else ricorda('Claude', String(e.answer ?? ''))
+      } else if (motivoFine !== 'error') ricorda('Claude', risposta)
     } catch (x) { /* resta il messaggio di Claude Code */ }
     if (tettoInUso) { tettoInUso = false; await update($, tettoLavoro, () => 0) }   // lavoro finito: torna il predefinito
     if (usdInizio >= 0) {
@@ -680,6 +696,7 @@ export const register: Register = on => {
           <Text color={rip.stato === 'errore' ? '#ef4444' : rip.stato === 'finito' ? '#22c55e' : '#3b82f6'} wrap="truncate-end">
             {rip.stato === 'in corso' ? R.riga(dollari(rip.rimasti)) : rip.stato === 'finito' ? R.fatto(rip.costo || '?') : R.fallito}
           </Text>
+          {rip.stato === 'in corso' ? <Button key="ripiego-ferma" label={R.ferma} onPress={() => { fermaFiglio?.() }} /> : null}
           {rip.stato === 'in corso' ? null : <Button key="ripiego-apri" label={rip.aperto ? R.nascondi : R.resoconto} onPress={() => { void update($, ripiego, (v: Ripiego | null) => (v ? { ...v, aperto: !v.aperto } : v)) }} />}
           {rip.stato === 'in corso' ? null : <Button key="ripiego-chiudi" label="×" onPress={() => { void update($, ripiego, () => null) }} />}
         </Box>
