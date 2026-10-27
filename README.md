@@ -48,6 +48,8 @@ Left of the **▤ Usage** button above the message box, **Cap: ×1** cycles thro
 
 When the 5-hour or weekly plan reaches the threshold (95% by default, adjustable in the panel), or a turn ends with the plan limit error, your message does not go to the model: the mod itself runs the API helper `agente.py` with your message, the latest chat messages, the cap and loops chosen with **Cap**. A line above the chat shows the job; at the end the report and the cost (plus a toast). The spend banner rules still apply. Toggle: **Automatic switch to API** in the panel. Missing credits or `agente.py`: the reason is shown and the plan is used.
 
+0.9.1: the plan percentage is the fullest window (5-hour, weekly all models, weekly of the model in use), so a full weekly limit triggers the switch even when the 5-hour one is low; plan extra usage credits are not used for work while API credits are available. Budget per message: short questions 0.30 $, medium work 1 $, heavy work the chosen cap; messages from other sessions or plugins 0.30 $.
+
 ## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.

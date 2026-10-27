@@ -6,6 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
+import { budgetRipiego, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -257,7 +258,7 @@ const dollari = (n: number) => `${n.toFixed(2).replace(".", ",")} $`
 const tetto = (g: number, l: Livello) => Math.round((g + 0.5) * COSTO_GIRO[l] * 100) / 100
 
 // ---- passaggio automatico ai crediti API ----
-// Dal 90% del piano (5 ore o settimana), se ci sono crediti API non scaduti, la chiave e l'aiutante agente.py,
+// Dalla soglia del piano (la finestra più piena tra 5 ore, settimana e settimana del modello), se ci sono crediti API non scaduti, la chiave e l'aiutante agente.py,
 // ogni messaggio porta a Claude l'indicazione di far fare il lavoro all'aiutante, che paga con i crediti API.
 // Senza crediti, chiave o aiutante non cambia niente: si continua con il piano.
 function crediti(ap: Api | null): number {
@@ -265,8 +266,10 @@ function crediti(ap: Api | null): number {
   const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > ora)
   return Math.max(0, attivi.reduce((x, c) => x + (Number(c.dollari) || 0), 0) - (ap?.speso ?? 0))
 }
+let modelloInUso = ''   // per il limite settimanale del singolo modello
+// il piano è la finestra più piena (5 ore, settimanale, settimanale del modello in uso), non solo le 5 ore
 function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): { attivo: boolean; piano: number; rimasto: number; manca: string } {
-  const piano = Math.max(0, ...L.map(l => l.percentUsed ?? 0)), rimasto = crediti(ap)
+  const piano = pianoMassimo(L, modelloInUso).piano, rimasto = crediti(ap)
   const manca = !ap?.presente ? 'crediti' : !acceso ? 'spento' : rimasto <= 0.5 ? 'crediti' : !ap.chiave ? 'chiave' : !ap.agente ? 'agente' : ''
   return { attivo: !manca && piano >= soglia, piano, rimasto, manca }
 }
@@ -316,19 +319,29 @@ async function avviaRipiego($: any, r: { testo: string; titolo: string; budget: 
 }
 
 // decide se il messaggio va all'aiutante: null = no (resta al piano), altrimenti il motivo mostrato al posto del turno
-async function ripiega($: any, testo: string, forza: boolean): Promise<string | null> {
+// i limiti letti adesso uniti a quelli già noti (una lettura può portare solo le 5 ore: il settimanale resta fino al suo azzeramento)
+const daLimiti = (x: any[]): Limite[] => (x ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt }))
+async function salvaLimiti($: any, nuove: Limite[]): Promise<Limite[]> {
+  const L = uniscFinestre(nuove, (await read($, limiti)) ?? [])
+  await update($, limiti, () => L)
+  return L
+}
+// daYannis = scritto da lui (composer, telefono, app desktop); altrimenti viene da altre sessioni o plugin: budget minimo
+async function ripiega($: any, testo: string, forza: boolean, daYannis = true): Promise<string | null> {
   const acceso = await read($, ripiegoAuto), soglia = await read($, ripiegoSoglia)
   if (!acceso || !testo.trim()) return null
   let L = await read($, limiti)
-  try { const u = await $.session.usage(); L = (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })) } catch (x) { /* gli ultimi letti */ }
+  try { L = await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)) } catch (x) { /* gli ultimi letti */ }
   const ap = await read($, api), p = passaggioApi(L, ap, soglia, acceso), R = testiRipiego()
   if (limiteDa && (Date.now() - limiteDa > 6 * 3600000 || (p.piano > 0 && p.piano < soglia))) limiteDa = 0   // il piano si è azzerato
   if (!forza && p.piano < soglia && !limiteDa) return null
-  if (p.manca) { $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
-  if ((await read($, ripiego))?.stato === 'in corso') return R.giaInCorso
-  const liv = livelloDi(testo), alzato = tettoDi(await read($, tettoLavoro))
-  const giri_ = alzato ? alzato.giri : giriEffettivi(await read($, giri), liv)
-  const budget = Math.max(0.5, Math.min(alzato ? alzato.usd : Math.max(tetto(giri_, liv), 0.5), Math.floor(p.rimasto * 100) / 100))
+  if (p.manca) { if (daYannis) $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
+  if ((await read($, ripiego))?.stato === 'in corso') return daYannis ? R.giaInCorso : null   // le notifiche non si perdono
+  // budget proporzionato: breve 0,3 $, medio 1 $, pesante il tetto scelto (o quello calcolato); il tetto vale solo per i pesanti
+  const peso = pesoDi(testo, livelloDi(testo), daYannis), scelto = tettoDi(await read($, tettoLavoro))
+  const alzato = peso === 'pesante' ? scelto : undefined
+  const giri_ = peso === 'breve' ? 1 : alzato ? alzato.giri : giriEffettivi(await read($, giri), peso === 'pesante' ? 'pesante' : 'medio')
+  const budget = budgetRipiego(peso, alzato ? alzato.usd : tetto(giri_, 'pesante'), p.rimasto)
   const titolo = testo.trim().split(/\s+/).slice(0, 6).join(' ').slice(0, 60)
   const r = { testo, titolo, budget, giri: giri_, alzato: !!alzato }
   // le regole del banner di spesa valgono uguale: sopra 1,5 $ e sopra il tetto scelto serve l'ok
@@ -436,10 +449,11 @@ async function aggiorna($: any) {
   try {
     // "summary": la composizione della memoria stimata sul PC, senza chiamate in più
     const u = await $.session.usage({ breakdown: 'summary' })
-    await update($, limiti, () => (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })))
+    await salvaLimiti($, daLimiti(u.rateLimits))
     const categorie = (u.context.breakdown?.categories ?? []).filter((c: any) => !c.isDeferred && c.tokens > 0)
       .map((c: any) => ({ nome: String(c.name), tokens: Number(c.tokens), colore: String(c.color || GRIGIO) }))
     const [id, turni, modello] = await Promise.all([$.session.id(), $.session.turns(), $.session.model()])
+    modelloInUso = String(modello ?? '')
     await update($, memoria, () => ({ tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, categorie, id, inizio: u.startedAt, turni, modello }))
   } catch (e) { /* i limiti arrivano con la prossima risposta */ }
   await aggiornaApi($)
@@ -493,12 +507,16 @@ export const register: Register = on => {
     if (e.command) return next(e)
     try {
       const testoPersona = String((e as any).text ?? '')
-      if ((e as any).origin?.kind === 'composer') {
-        ultimoTesto = testoPersona
-        ricorda('Yannis', testoPersona)
-        const motivo = await ripiega($, testoPersona, false)
-        if (motivo) return { drop: motivo }
-      }
+      // scritto da Yannis: al terminale, dal telefono o dall'app desktop (che arriva come «sdk»); il resto viene da altre sessioni o plugin
+      const tipo = (e as any).origin?.kind, daYannis = !tipo || tipo === 'composer' || tipo === 'bridge' || tipo === 'sdk'
+      if (daYannis) { ultimoTesto = testoPersona; ricorda('Yannis', testoPersona) }
+      const motivo = await ripiega($, testoPersona, false, daYannis)
+      if (motivo) return { drop: motivo }
+      const contesto: string[] = []
+      // il piano oltre la soglia senza ripiego (spento, crediti o aiutante mancanti): lo si dice al modello
+      { const pm = pianoMassimo(await read($, limiti), modelloInUso), sogliaR = await read($, ripiegoSoglia)
+        const pa = passaggioApi(await read($, limiti), await read($, api), sogliaR, await read($, ripiegoAuto))
+        if (pm.piano >= sogliaR) contesto.push(`[Pannello Utilizzo] Il piano Claude è al ${Math.round(pm.piano)}% (finestra più piena: ${pm.kind}). ${pa.manca === 'spento' ? 'Ripiego automatico sui crediti API spento da Yannis.' : pa.manca ? `Ripiego sui crediti API non possibile (${pa.manca}): si continua con il piano.` : "Per i lavori usa l'aiutante agente.py (crediti API), non i crediti di utilizzo extra di claude.ai."}`) }
       const liv = livelloDi(testoPersona)
       const alzato = tettoDi(await read($, tettoLavoro))   // tetto scelto accanto a Utilizzo: sostituisce quello calcolato
       tettoInUso = !!alzato
@@ -506,7 +524,6 @@ export const register: Register = on => {
       if (testoPersona.trim().length > 40) await update($, ultimoLivello, () => liv)
       usdInizio = await usdOra($)
       await update($, richieste, (v: Richiesta[]) => [{ ora: Date.now(), liv, stima: max, costo: 0, inCorso: true }, ...(v ?? []).filter(x => !x.inCorso)].slice(0, 15))
-      const contesto: string[] = []
       // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
       if (testoPersona.trim().length > 40 || alzato) {
         $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
@@ -527,6 +544,12 @@ export const register: Register = on => {
     } catch (x) { return r }
   })
 
+  // i limiti spinti dal motore (dopo ogni turno e quando una finestra si muove di un punto)
+  on('session.measure', async ($, e, next) => {
+    try { const rl = (e as any).rateLimits; if (Array.isArray(rl) && rl.length) await salvaLimiti($, daLimiti(rl)) } catch (x) { /* alla prossima lettura */ }
+    return next(e)
+  })
+
   // dopo ogni risposta i limiti e la memoria cambiano: si rileggono subito
   let ultimaCompressione = 0
   on('turn.complete', async ($, e, next) => {
@@ -535,7 +558,7 @@ export const register: Register = on => {
     try {
       if ((e as any).reason === 'error') {
         let pieno = false
-        try { pieno = ((await $.session.usage()).rateLimits ?? []).some((x: Limite) => (x.percentUsed ?? 0) >= 100) } catch (x) { /* solo il testo */ }
+        try { pieno = pianoMassimo(await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)), modelloInUso).piano >= 100 } catch (x) { /* solo il testo */ }
         if (RE_LIMITE.test(String(e.answer ?? '')) || pieno) {
           limiteDa = Date.now()
           tettoInUso = false   // il tetto resta per il lavoro rilanciato con l'aiutante
