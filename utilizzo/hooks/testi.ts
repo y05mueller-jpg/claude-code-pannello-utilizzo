@@ -506,7 +506,7 @@ export const TESTI_ALTRI: Record<Lingua, TestiAltri> = { it: altriIt, en: altriE
 // ripiego automatico sui crediti API (0.9.0): la riga sopra la chat, i toast e l'interruttore nel pannello
 type TestiRipiego = {
   riga: (r: string) => string; parte: (r: string) => string; fatto: (c: string) => string; finito: (c: string) => string; fallito: string
-  attesa: (b: string) => string; giaInCorso: string; giaFatto: string; ferma: string; fermato: string; manca: (m: string) => string; resoconto: string; nascondi: string
+  attesa: (b: string) => string; giaInCorso: string; inCoda: (n: number) => string; inCodaRiga: (n: number) => string; interrotto: string; codaFerma: (n: number) => string; codaAvvio: (n: number) => string; giaFatto: string; ferma: string; fermato: string; manca: (m: string) => string; resoconto: string; nascondi: string
   interruttore: string; soglia: string; contesto: string
 }
 const ripiegoIt: TestiRipiego = {
@@ -514,6 +514,11 @@ const ripiegoIt: TestiRipiego = {
   fatto: c => `✓ Lavoro con i crediti API finito · costo ${c} $`, finito: c => `Lavoro con i crediti API finito: costo ${c} $`,
   fallito: 'Lavoro con i crediti API non riuscito', attesa: b => `Ripiego sui crediti API: serve l’ok nel banner (spesa ${b})`,
   giaInCorso: 'L’aiutante API sta già lavorando: questo messaggio non è partito, rimandalo quando finisce (riga sopra la chat)',
+  inCoda: (n: number) => `L’aiutante API sta lavorando: messaggio in coda (${n}), parte da solo appena finisce`,
+  inCodaRiga: (n: number) => `${n} in coda`,
+  codaAvvio: (n: number) => `${n} ${n === 1 ? 'messaggio tuo è' : 'messaggi tuoi sono'} ancora in coda: ${n === 1 ? 'parte' : 'partono'} insieme al prossimo che scrivi`,
+  interrotto: 'Lavoro interrotto: il pannello si è ricaricato mentre l’aiutante lavorava. I messaggi nuovi partono di nuovo.',
+  codaFerma: (n: number) => `${n} ${n === 1 ? 'messaggio resta' : 'messaggi restano'} in coda: l’aiutante API non può partire (crediti, chiave o interruttore). Partono al prossimo messaggio`,
   giaFatto: 'Questo messaggio l’ha già fatto l’aiutante API: il resoconto è sopra la chat', ferma: 'Ferma', fermato: 'Lavoro con i crediti API fermato',
   manca: m => `Ripiego sui crediti API non possibile: ${m === 'agente' ? 'manca agente.py' : m === 'chiave' ? 'manca chiave.txt' : 'crediti API finiti o scaduti'}. Si continua con il piano.`,
   resoconto: 'Resoconto', nascondi: 'Nascondi', interruttore: 'Ripiego su API automatico', soglia: 'Dal',
@@ -524,6 +529,11 @@ const ripiegoEn: TestiRipiego = {
   fatto: c => `✓ API-credit job done · cost $${c}`, finito: c => `API-credit job done: cost $${c}`,
   fallito: 'API-credit job failed', attesa: b => `Switch to API credits: approve in the banner (spend ${b})`,
   giaInCorso: 'The API helper is already working: this message was not sent, send it again when it finishes (line above the chat)',
+  inCoda: (n: number) => `The API helper is working: message queued (${n}), it starts by itself when the helper finishes`,
+  inCodaRiga: (n: number) => `${n} queued`,
+  codaAvvio: (n: number) => `${n} of your ${n === 1 ? 'messages is' : 'messages are'} still queued: they go together with the next one you write`,
+  interrotto: 'Job interrupted: the panel reloaded while the helper was working. New messages start again.',
+  codaFerma: (n: number) => `${n} ${n === 1 ? 'message stays' : 'messages stay'} queued: the API helper cannot start (credits, key or switch). They start with the next message`,
   giaFatto: 'The API helper already did this message: the report is above the chat', ferma: 'Stop', fermato: 'API-credit job stopped',
   manca: m => `Cannot switch to API credits: ${m === 'agente' ? 'agente.py is missing' : m === 'chiave' ? 'chiave.txt is missing' : 'API credits used up or expired'}. The plan is used.`,
   resoconto: 'Report', nascondi: 'Hide', interruttore: 'Automatic switch to API', soglia: 'From',

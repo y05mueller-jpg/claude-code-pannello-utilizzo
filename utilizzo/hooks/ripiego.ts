@@ -76,3 +76,31 @@ export function nonDeviare(e: { text?: string; command?: unknown; isMeta?: boole
 }
 // scritto da Yannis: terminale, telefono (bridge) o app desktop (sdk); il resto (altre sessioni, plugin, notifiche) no
 export const daYannisOrigine = (kind?: string) => !kind || kind === 'composer' || kind === 'bridge' || kind === 'sdk'
+
+// ---- 0.9.4: coda dei messaggi mentre l'aiutante lavora (prima venivano scartati e si perdevano) ----
+// La coda sta in $.store (sopravvive al ricaricamento del pannello e al riavvio), un elenco per tutte le sessioni.
+export type InCoda = { testo: string; ora: number; sessione: string }
+export const MAX_CODA = 60
+export function leggiCoda(x: unknown): InCoda[] {
+  if (!Array.isArray(x)) return []
+  return x.filter((c: any) => c && typeof c.testo === 'string' && c.testo.trim() && Number.isFinite(Number(c.ora)))
+    .map((c: any) => ({ testo: c.testo, ora: Number(c.ora), sessione: String(c.sessione ?? '') }))
+}
+// aggiunge in fondo; lo stesso testo appena messo in coda (doppio invio) non si ripete; oltre MAX_CODA si tolgono i più vecchi
+export function aggiungiACoda(coda: InCoda[], testo: string, sessione: string, ora = Date.now()): InCoda[] {
+  const t = testo.trim()
+  if (!t) return coda
+  if (coda.some(c => c.sessione === sessione && c.testo.trim() === t)) return coda
+  return [...coda, { testo: t, ora, sessione }].slice(-MAX_CODA)
+}
+// i messaggi di questa sessione (in ordine) e quelli delle altre, che restano in coda
+export function dividiCoda(coda: InCoda[], sessione: string): { miei: InCoda[]; altri: InCoda[] } {
+  return { miei: coda.filter(c => c.sessione === sessione), altri: coda.filter(c => c.sessione !== sessione) }
+}
+// un solo lavoro per tutti i messaggi in coda, nell'ordine in cui Yannis li ha scritti
+export function testoDaCoda(miei: InCoda[]): string {
+  if (miei.length === 1) return miei[0]?.testo ?? ''
+  return miei.map((c, i) => `${i + 1}. ${c.testo}`).join('\n\n')
+}
+// «in corso» senza un aiutante vivo in questo pannello = rimasto da un ricaricamento: non deve bloccare i messaggi
+export const statoRimasto = (stato: string | undefined, occupato: boolean) => stato === 'in corso' && !occupato

@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
-import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, MAX_CODA, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
+const NL = String.fromCharCode(10)
 const futuro = new Date(Date.now() + 3 * 86400000).toISOString()
 
 test('5 ore al 24% e settimanale al 100%: il piano è al 100% e il ripiego scatta (soglia 95%)', () => {
@@ -128,4 +129,34 @@ test('lo stesso tipo da sessione e store vale una volta sola: il più recente', 
   expect(pianoMassimo(uniscFinestre([], [{ kind: 'seven_day', percentUsed: 100, resetsAt: futuro }, { kind: 'seven_day', percentUsed: 3, resetsAt: dopo }])).piano).toBe(3)
   // la lettura di adesso vince sempre sulle vecchie
   expect(pianoMassimo(uniscFinestre([{ kind: 'seven_day', percentUsed: 50, resetsAt: futuro }], L)).piano).toBe(50)
+})
+
+test('0.9.4: con l’aiutante occupato i messaggi vanno in coda, nell’ordine, senza doppioni', () => {
+  let c = aggiungiACoda([], 'primo', 'A', 1)
+  c = aggiungiACoda(c, 'secondo', 'A', 2)
+  c = aggiungiACoda(c, ' secondo ', 'A', 3)   // doppio invio
+  c = aggiungiACoda(c, 'di un’altra chat', 'B', 4)
+  c = aggiungiACoda(c, '   ', 'A', 5)
+  expect(c.length).toBe(3)
+  const { miei, altri } = dividiCoda(c, 'A')
+  expect(miei.map(x => x.testo)).toEqual(['primo', 'secondo'])
+  expect(altri.length).toBe(1)
+  expect(testoDaCoda(miei)).toBe('1. primo' + NL + NL + '2. secondo')
+  expect(testoDaCoda(miei.slice(0, 1))).toBe('primo')
+})
+
+test('0.9.4: la coda letta dallo store scarta le voci rotte e non supera il massimo', () => {
+  expect(leggiCoda(null)).toEqual([])
+  expect(leggiCoda([{ testo: 'ok', ora: 1, sessione: 'A' }, { testo: '', ora: 1 }, { ora: 2 }, 'x']).length).toBe(1)
+  let c: ReturnType<typeof leggiCoda> = []
+  for (let i = 0; i < MAX_CODA + 5; i++) c = aggiungiACoda(c, 'm' + i, 'A', i)
+  expect(c.length).toBe(MAX_CODA)
+  expect(c[0]?.testo).toBe('m5')
+})
+
+test('0.9.4: «in corso» rimasto da un ricaricamento non blocca; con l’aiutante vivo sì', () => {
+  expect(statoRimasto('in corso', false)).toBe(true)
+  expect(statoRimasto('in corso', true)).toBe(false)
+  expect(statoRimasto('finito', false)).toBe(false)
+  expect(statoRimasto(undefined, false)).toBe(false)
 })

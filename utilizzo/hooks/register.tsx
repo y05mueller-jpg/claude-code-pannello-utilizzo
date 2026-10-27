@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -126,6 +126,8 @@ async function guardiaSpesa($: any, e: any, next: any): Promise<any> {
     if ((await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === sp.budget)) return next(e)
     const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
     await update($, spesaInAttesa, () => ({ titolo: sp.titolo, budget: sp.budget, comando, ora: Date.now() }))
+    // 0.9.4: questo banner sostituisce quello del ripiego: i messaggi della coda che aspettavano lì tornano in coda
+    if (ripiegoInAttesa) { const vecchie = partiInAttesa; ripiegoInAttesa = null; partiInAttesa = []; void (async () => { for (const t of vecchie) await mettiInCoda($, t) })() }
     return { deny: S.inAttesa(String(sp.budget)) }
   } catch (x) { return next(e) }
 }
@@ -280,6 +282,7 @@ function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): 
 const ripiegoAuto = atom({ plugin: 'utilizzo', key: 'ripiegoAuto' } as const, true)
 const ripiegoSoglia = atom({ plugin: 'utilizzo', key: 'ripiegoSoglia' } as const, 95)
 const ripiego = atom({ plugin: 'utilizzo', key: 'ripiego' } as const, null as Ripiego | null)
+const inCoda = atom({ plugin: 'utilizzo', key: 'ripiegoCoda' } as const, 0)   // 0.9.4: messaggi di questa chat in coda per l'aiutante
 const SOGLIE_RIPIEGO = [80, 85, 90, 95, 98]
 const RIPIEGO = '(ripiego API)'   // il «comando» della spesa in attesa quando è il ripiego a chiedere l'ok
 let limiteFinoA = 0          // limite raggiunto (errore del turno) valido fino a quest'ora (0 = no)
@@ -295,10 +298,63 @@ const ricorda = (chi: string, t: string) => { if (t.trim()) { storia.push(`${chi
 const testiRipiego = () => TESTI_RIPIEGO[(linguaDa || 'it') as Lingua] ?? TESTI_RIPIEGO.it
 
 async function avviaRipiego($: any, r: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean }) {
-  if (occupato) { $.ui.toast(testiRipiego().giaInCorso); return }
+  if (occupato) { $.ui.toast(testiRipiego().inCoda(await mettiInCoda($, r.testo))); return }
   occupato = true
   lanciato = { testo: r.testo.trim(), ora: Date.now() }
-  try { await lavoraRipiego($, r) } finally { occupato = false; fermaFiglio = null }
+  try { await lavoraRipiego($, r) } finally {
+    occupato = false; fermaFiglio = null
+    // fermato da Yannis: la coda non parte da sola, si unisce al suo prossimo messaggio
+    if (fermatoDaYannis) fermatoDaYannis = false; else void svuotaCoda($).catch(() => {})
+  }
+}
+// ---- 0.9.4: coda. Con l'aiutante occupato un messaggio di Yannis non si scarta più: va in $.store e parte dopo ----
+const CODA = 'codaRipiego'
+let fermatoDaYannis = false
+let codaDaBanner = { testo: '', parti: [] as string[] }   // il testo unito appena preso dalla coda e i suoi messaggi
+let partiInAttesa: string[] = []   // i messaggi della coda dentro il lavoro che aspetta l'ok nel banner: con «No» tornano in coda
+// $.store non ha scritture atomiche: letture e scritture della coda passano una alla volta (due invii vicini non si perdono né si doppiano)
+let catenaCoda: Promise<unknown> = Promise.resolve()
+function inSerie<T>(f: () => Promise<T>): Promise<T> { const p = catenaCoda.then(f, f); catenaCoda = p.catch(() => {}); return p }
+async function sessioneDi($: any): Promise<string> {   // si rilegge ogni volta: dopo /clear la chat ha un id nuovo
+  let id = ''
+  try { id = String((await $.session.id()) ?? '') } catch (x) { /* senza id: la cartella */ }
+  return id || cartellaSessione || '?'
+}
+function mettiInCoda($: any, testo: string): Promise<number> {
+  return inSerie(async () => {
+    const sess = await sessioneDi($)
+    let coda = leggiCoda(await Promise.resolve($.store.get(CODA)).catch(() => undefined))
+    coda = aggiungiACoda(coda, testo, sess)
+    try { await $.store.set(CODA, coda) } catch (x) { /* resta il conteggio: la riga lo mostra */ }
+    const n = dividiCoda(coda, sess).miei.length
+    try { await update($, inCoda, () => n) } catch (x) { /* solo il numero sulla riga */ }
+    return n
+  })
+}
+// toglie dalla coda i messaggi di questa chat e li restituisce (nell'ordine in cui sono stati scritti)
+function prendiCoda($: any): Promise<{ testo: string }[]> {
+  return inSerie(async () => {
+    const sess = await sessioneDi($)
+    const { miei, altri } = dividiCoda(leggiCoda(await Promise.resolve($.store.get(CODA)).catch(() => undefined)), sess)
+    if (!miei.length) return []
+    try { await $.store.set(CODA, altri) } catch (x) { return [] }   // se non si può togliere, restano in coda
+    try { await update($, inCoda, () => 0) } catch (x) { /* solo il numero sulla riga */ }
+    return miei
+  })
+}
+// finito un lavoro (o all'avvio della chat): i messaggi in coda partono insieme, in un solo lavoro
+async function svuotaCoda($: any) {
+  if (occupato) return
+  const miei = await prendiCoda($)
+  if (!miei.length) return
+  const testo = testoDaCoda(miei as any)
+  let motivo: string | null = null
+  try { codaDaBanner = { testo, parti: miei.map(c => c.testo) }; motivo = await ripiega($, testo, true, true) } catch (x) { motivo = null }
+  if (motivo) { $.ui.toast(motivo); return }
+  // l'aiutante non può partire (spento, senza crediti o chiave) o c'è stato un errore: i messaggi tornano in coda
+  codaDaBanner = { testo: '', parti: [] }
+  for (const c of miei) await mettiInCoda($, c.testo)
+  $.ui.toast(testiRipiego().codaFerma(miei.length))
 }
 async function lavoraRipiego($: any, r: { testo: string; titolo: string; budget: number; giri: number; alzato: boolean }) {
   const R = testiRipiego(), ap = await read($, api), rimasti = crediti(ap)
@@ -312,7 +368,7 @@ async function lavoraRipiego($: any, r: { testo: string; titolo: string; budget:
     const figlio = $.process.spawn({ argv: ['python', '-I', ap.agente, '--cartella', cartellaSessione || '.', '--titolo', r.titolo, '--budget', String(r.budget), '--giri', String(r.giri), '--modello', 'auto', compito] })
     const it = figlio[Symbol.asyncIterator]()
     // Ferma (o 2 ore senza fine, al messaggio dopo): chiudere il flusso termina il figlio
-    fermaFiglio = () => { fermato = true; void it.return?.() }
+    fermaFiglio = () => { fermato = true; fermatoDaYannis = true; void it.return?.() }
     figlioDa = Date.now()
     for (;;) {
       const { value, done } = await it.next()
@@ -370,7 +426,9 @@ async function ripiega($: any, testo: string, forza: boolean, daYannis = true): 
   if (!deveRipiegare(acceso, p.piano, soglia, limiteFinoA > 0, forza)) return null
   if (p.manca) { if (daYannis) $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
   if (occupato && Date.now() - figlioDa > 2 * 3600000) fermaFiglio?.()   // bloccato da più di 2 ore: si ferma
-  if (occupato || (await read($, ripiego))?.stato === 'in corso') return daYannis ? R.giaInCorso : null   // le notifiche non si perdono
+  // 0.9.4: «in corso» senza aiutante vivo = rimasto da un ricaricamento del pannello (prima bloccava tutto, Ferma non c'era)
+  if (statoRimasto((await read($, ripiego))?.stato, occupato)) await update($, ripiego, (v: Ripiego | null) => (v ? { ...v, stato: 'errore' as const, testo: R.interrotto, aperto: true } : v))
+  if (occupato) return daYannis ? R.inCoda(await mettiInCoda($, testo)) : null   // le notifiche non si perdono
   // il ritento dello stesso messaggio (dopo l'errore di limite il lavoro è già partito da solo) non lo rifà: se è fallito sì
   if (daYannis && testo.trim() === lanciato.testo && Date.now() - lanciato.ora < 30 * 60000 && (await read($, ripiego))?.stato === 'finito') return R.giaFatto
   // budget proporzionato: breve 0,3 $, medio 1 $, pesante il tetto scelto (o quello calcolato); il tetto vale solo per i pesanti
@@ -384,11 +442,16 @@ async function ripiega($: any, testo: string, forza: boolean, daYannis = true): 
   const ora = Date.now(), nome = chiaveSpesa(titolo, RIPIEGO)
   const approvata = (await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === budget)
   if (budget > SOGLIA_APPROVAZIONE && budget > (await read($, tettoLavoro)) + 1e-9 && !approvata) {
-    ripiegoInAttesa = r
+    // un banner nuovo sostituisce quello vecchio: i messaggi della coda che aspettavano lì tornano in coda
+    // (si assegnano solo dopo che il banner è comparso: se l'update fallisce, chi ha chiamato rimette i messaggi in coda una volta sola)
     await update($, spesaInAttesa, () => ({ titolo, budget, comando: RIPIEGO, ora }))
+    if (ripiegoInAttesa && partiInAttesa.length) { const vecchie = partiInAttesa; void (async () => { for (const t of vecchie) await mettiInCoda($, t) })() }
+    partiInAttesa = codaDaBanner.testo && codaDaBanner.testo === testo ? codaDaBanner.parti : []
+    codaDaBanner = { testo: '', parti: [] }
+    ripiegoInAttesa = r
     return R.attesa(dollari(budget))
   }
-  if (occupato) return daYannis ? R.giaInCorso : null   // un altro messaggio è partito nel frattempo
+  if (occupato) return daYannis ? R.inCoda(await mettiInCoda($, testo)) : null   // un altro messaggio è partito nel frattempo
   void avviaRipiego($, r)   // segna «occupato» subito, prima di ogni attesa
   return R.riga(dollari(p.rimasto))
 }
@@ -519,7 +582,9 @@ export const register: Register = on => {
     try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
     try { const v = await $.store.get('ripiegoAuto'); if (typeof v === 'boolean') await update($, ripiegoAuto, () => v) } catch (x) { /* acceso */ }
     try { const v = Number(await $.store.get('ripiegoSoglia')); if (SOGLIE_RIPIEGO.includes(v)) await update($, ripiegoSoglia, () => v) } catch (x) { /* 95% */ }
-    try { await limitiNoti($) } catch (x) { /* al primo messaggio */ }   // i limiti salvati prima del riavvio: pannello e ripiego li hanno subito
+    try { await limitiNoti($) } catch (x) { /* al primo messaggio */ }
+    // 0.9.4: messaggi rimasti in coda prima del riavvio: partono con il prossimo messaggio di Yannis (si unisce a loro)
+    try { const n = dividiCoda(leggiCoda(await $.store.get(CODA)), await sessioneDi($)).miei.length; await update($, inCoda, () => n); if (n) $.ui.toast(testiRipiego().codaAvvio(n)) } catch (x) { /* nessuna */ }   // i limiti salvati prima del riavvio: pannello e ripiego li hanno subito
     try { cartellaSessione = String((e as any).cwd ?? '') || (await $.process.run(['node', '-e', 'process.stdout.write(process.cwd())'], { timeoutMs: 10000 })).stdout.trim() } catch (x) { cartellaSessione = '' }
     try { const v = Number(await $.store.get('giri')); if (v === 0 || OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta consigliato */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
@@ -543,11 +608,16 @@ export const register: Register = on => {
   // ogni messaggio della persona: se il piano è oltre la soglia e ci sono crediti API, il lavoro va all'aiutante API
   on('prompt.submit', async ($, e, next) => {
     if (nonDeviare(e as any)) return next(e)   // /utilizzo, /compact, !comandi e messaggi interni vanno sempre al motore
+    let unito = ''   // 0.9.4: il testo con i messaggi presi dalla coda (se la coda è stata svuotata, non deve perdersi)
     try {
-      const testoPersona = String((e as any).text ?? '')
+      const scritto = String((e as any).text ?? '')
       // scritto da Yannis: al terminale, dal telefono o dall'app desktop (che arriva come «sdk»); il resto viene da altre sessioni o plugin
       const daYannis = daYannisOrigine((e as any).origin?.kind)
-      if (daYannis) { ultimoTesto = testoPersona; ricorda('Yannis', testoPersona) }
+      if (daYannis) { ultimoTesto = scritto; ricorda('Yannis', scritto) }
+      // 0.9.4: messaggi rimasti in coda (aiutante che non poteva partire): vanno insieme a questo, prima di lui
+      const prima = daYannis && !occupato ? await prendiCoda($) : []
+      const testoPersona = prima.length ? testoDaCoda([...prima, { testo: scritto }] as any) : scritto
+      if (prima.length) { unito = testoPersona; codaDaBanner = { testo: testoPersona, parti: prima.map(c => c.testo) } }
       const motivo = await ripiega($, testoPersona, false, daYannis)
       if (motivo) return { drop: motivo }
       const contesto: string[] = []
@@ -567,8 +637,9 @@ export const register: Register = on => {
         $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
         contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis${alzato ? ` (${TESTI_TETTO.it.alzato})` : ''}: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro).${alzato ? ` Se lanci agente.py usa --budget fino a ${max} e --giri ${g}; fino a ${max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
       }
-      return contesto.length ? next({ ...e, context: [...(e.context ?? []), ...contesto] }) : next(e)
-    } catch (x) { return next(e) }
+      const e2 = unito ? { ...e, text: unito } : e
+      return contesto.length ? next({ ...e2, context: [...(e.context ?? []), ...contesto] }) : next(e2)
+    } catch (x) { return next(unito ? { ...e, text: unito } : e) }
   })
 
   // scelta automatica del modello: una sezione fissa nel prompt di sistema (resta nella cache, costa quasi niente),
@@ -710,14 +781,15 @@ export const register: Register = on => {
       }
       else imposta(Number(v))
     }
-    const rip = await read($, ripiego), R = testiRipiego()
+    const rip = await read($, ripiego), R = testiRipiego(), nCoda = (await read($, inCoda)) ?? 0
     const rigaRipiego = rip ? (
       <Box key="ripiego" flexDirection="column">
         <Box flexDirection="row" gap={1}>
           <Text color={rip.stato === 'errore' ? '#ef4444' : rip.stato === 'finito' ? '#22c55e' : '#3b82f6'} wrap="truncate-end">
             {rip.stato === 'in corso' ? R.riga(dollari(rip.rimasti)) : rip.stato === 'finito' ? R.fatto(rip.costo || '?') : R.fallito}
           </Text>
-          {rip.stato === 'in corso' ? <Button key="ripiego-ferma" label={R.ferma} onPress={() => { fermaFiglio?.() }} /> : null}
+          {nCoda > 0 ? <Text key="ripiego-coda" dimColor>{R.inCodaRiga(nCoda)}</Text> : null}
+          {rip.stato === 'in corso' ? <Button key="ripiego-ferma" label={R.ferma} onPress={() => { if (fermaFiglio) fermaFiglio(); else void update($, ripiego, (v: Ripiego | null) => (v ? { ...v, stato: 'errore' as const, testo: R.interrotto, aperto: true } : v)) }} /> : null}
           {rip.stato === 'in corso' ? null : <Button key="ripiego-apri" label={rip.aperto ? R.nascondi : R.resoconto} onPress={() => { void update($, ripiego, (v: Ripiego | null) => (v ? { ...v, aperto: !v.aperto } : v)) }} />}
           {rip.stato === 'in corso' ? null : <Button key="ripiego-chiudi" label="×" onPress={() => { void update($, ripiego, () => null) }} />}
         </Box>
@@ -737,12 +809,18 @@ export const register: Register = on => {
                 const ora = Date.now()
                 await update($, spesaApprovate, (v: SpesaApprovata[]) => [...(v ?? []).filter(a => ora - a.ora < APPROVAZIONE_MS), { titolo: chiaveSpesa(attesa.titolo, attesa.comando), budget: attesa.budget, ora }])
                 await update($, spesaInAttesa, () => null)
-                if (attesa.comando === RIPIEGO) { const r = ripiegoInAttesa; ripiegoInAttesa = null; if (r) void avviaRipiego($, r); return }
+                if (attesa.comando === RIPIEGO) { const r = ripiegoInAttesa; ripiegoInAttesa = null; partiInAttesa = []; if (r) void avviaRipiego($, r); return }
                 void $.prompt.submit({ text: S.ok(budget, titolo) })
               }} />
               <Button key="spesa-no" label={S.no} onPress={async () => {
                 await update($, spesaInAttesa, () => null)
-                if (attesa.comando === RIPIEGO) { ripiegoInAttesa = null; return }
+                if (attesa.comando === RIPIEGO) {
+                  // 0.9.4: se aspettavano l'ok i messaggi presi dalla coda, con «No» non si perdono: tornano in coda
+                  const r = ripiegoInAttesa; ripiegoInAttesa = null
+                  const parti = partiInAttesa; partiInAttesa = []
+                  if (r && parti.length) void (async () => { for (const t of parti) await mettiInCoda($, t) })()
+                  return
+                }
                 void $.prompt.submit({ text: S.rifiuto(budget, titolo) })
               }} />
             </Box>
