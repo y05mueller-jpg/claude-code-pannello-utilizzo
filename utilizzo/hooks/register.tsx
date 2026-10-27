@@ -94,6 +94,7 @@ const giriPerTetto = (usd: number) => {
 }
 const tettoLavoro = atom({ plugin: 'utilizzo', key: 'tettoLavoro' } as const, 0)
 const tettoAperto = atom({ plugin: 'utilizzo', key: 'tettoAperto' } as const, false)   // il menu a tendina del tetto
+const tettoDigitato = atom({ plugin: 'utilizzo', key: 'tettoDigitato' } as const, '')   // quello che sta scrivendo nel campo, per mostrare subito il costo previsto
 const tettoErrore = atom({ plugin: 'utilizzo', key: 'tettoErrore' } as const, '')      // messaggio breve se il valore digitato non va
 let tettoInUso = false   // il tetto vale per la richiesta in corso (scelto prima dell'invio o durante il lavoro): finisce con la sua risposta
 const tettoDi = (usd: number) => (usd > 0 ? { usd, giri: giriPerTetto(usd) } : undefined)
@@ -531,6 +532,14 @@ export const register: Register = on => {
     const scelto = tettoDi(attuale)
     const aperto = !!(await read($, tettoAperto)) && !!Select
     const errore = await read($, tettoErrore)
+    const digitato = leggiTetto(String(await read($, tettoDigitato)))
+    // costo totale previsto: giri × costo per giro del livello (come nel pannello) + revisione finale, mai sopra il tetto
+    const liv = ((await read($, ultimoLivello)) || 'medio') as Livello
+    const apT = await read($, api)
+    const rimasti = apT?.presente && (apT.crediti ?? []).length ? crediti(apT) : null   // null = il pannello non li conosce
+    const previstoDi = (usd: number, g: number) => Math.min(usd, tetto(g, liv))
+    const oltre = (prev: number) => rimasti !== null && prev > rimasti + 1e-9
+    const gPred = giriEffettivi(await read($, giri), liv), usdPred = tetto(gPred, liv)
     const chiuso_ = await read($, chiuso)
     const titolo = attesa ? (attesa.titolo || S.senzaTitolo).slice(0, 32) : ''
     const budget = attesa ? String(attesa.budget) : ''
@@ -538,11 +547,19 @@ export const register: Register = on => {
       tettoInUso = !!(e.props as any)?.isWorking || usdInizio >= 0
       void update($, tettoLavoro, () => usd)
       void update($, tettoErrore, () => '')
+      void update($, tettoDigitato, () => '')
       void update($, tettoAperto, () => false)
     }
     // elenco: predefinito + le scelte (con i giri); un valore digitato fuori elenco compare al suo posto come voce attuale
     const usdVoci = (attuale > 0 && !TETTI_USD.includes(attuale) ? [attuale, ...TETTI_USD] : TETTI_USD.slice()).sort((x, y) => x - y)
-    const voci = [{ value: '0', label: W.predefinito }, ...usdVoci.map(u => ({ value: String(u), label: W.scelto(u, giriPerTetto(u)) }))]
+    const voce = (testo: string, prev: number, usd: number) => `${testo} · ${W.previsto(prev, usd)}${oltre(prev) ? ` ${W.oltre}` : ''}`
+    const voci = [
+      { value: '0', label: voce(`×1 · ${W.nGiri(gPred)}`, usdPred, usdPred) },
+      ...usdVoci.map(u => ({ value: String(u), label: voce(W.elenco(u, giriPerTetto(u)), previstoDi(u, giriPerTetto(u)), u) })),
+    ]
+    const prevScelto = scelto ? previstoDi(scelto.usd, scelto.giri) : usdPred
+    const prevDigitato = digitato !== null ? previstoDi(digitato, giriPerTetto(digitato)) : 0
+    const coloreOltre = '#f97316'
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" flexWrap="wrap" columnGap={1} justifyContent="space-between">
@@ -564,7 +581,9 @@ export const register: Register = on => {
             </Box>
           ) : <Box />}
           <Box key="tetto-riga" flexDirection="row" gap={1} alignSelf="flex-end">
-            <Button key="tetto-lavoro" label={`${scelto ? W.scelto(scelto.usd, scelto.giri) : W.predefinito} ${aperto ? '▴' : '▾'}`} onPress={() => { void update($, tettoErrore, () => ''); void update($, tettoAperto, (v: boolean) => !v) }} />
+            <Button key="tetto-lavoro" label={`${scelto ? W.scelto(scelto.usd, scelto.giri) : W.predefinito} ${aperto ? '▴' : '▾'}`} onPress={() => { void update($, tettoErrore, () => ''); void update($, tettoDigitato, () => ''); void update($, tettoAperto, (v: boolean) => !v) }} />
+            <Text key="tetto-previsto" color={oltre(prevScelto) ? coloreOltre : undefined}>{`${scelto ? '' : `· ${W.nGiri(gPred)} · `}${W.previsto(prevScelto, scelto ? scelto.usd : usdPred)}`}</Text>
+            {rimasti !== null ? <Text key="tetto-restano" dimColor size="caption">{`· ${W.restano(rimasti)}`}</Text> : null}
             {scelto ? <Button key="tetto-azzera" label="✕" onPress={() => { void update($, tettoLavoro, () => 0); void update($, tettoAperto, () => false) }} /> : null}
             {chiuso_ && !attesa ? (
               <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
@@ -578,9 +597,10 @@ export const register: Register = on => {
         {aperto ? (
           <Box key="tetto-menu" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
             {Input ? <Input key="tetto-digita" label="$" placeholder={W.digita(TETTO_MAX)} submitLabel={W.ok} autoFocus
-              onInput={() => { if (errore) void update($, tettoErrore, () => '') }}
+              onInput={(v: string) => { void update($, tettoDigitato, () => v); if (errore) void update($, tettoErrore, () => '') }}
               onSubmit={(v: string) => { const u = leggiTetto(v); if (u === null) void update($, tettoErrore, () => W.nonValido(TETTO_MAX)); else imposta(u) }} /> : null}
             {errore ? <Text color="#ef4444" size="caption">{errore}</Text> : null}
+            {digitato !== null && !errore ? <Text key="tetto-digitato-previsto" size="caption" color={oltre(prevDigitato) ? coloreOltre : undefined}>{`${W.scelto(digitato, giriPerTetto(digitato))} · ${W.previsto(prevDigitato, digitato)}`}</Text> : null}
             <Select key="tetto-elenco" options={voci} value={String(attuale)} onSelect={(v: string) => imposta(Number(v))} />
           </Box>
         ) : null}
@@ -594,6 +614,7 @@ export const register: Register = on => {
       if (!String((e as any).element ?? '').startsWith('tetto-') && (!(e as any).plugin || (e as any).plugin === 'utilizzo') && (await read($, tettoAperto))) {
         await update($, tettoAperto, () => false)
         await update($, tettoErrore, () => '')
+        await update($, tettoDigitato, () => '')
       }
     } catch (x) { /* il menu resta com'è */ }
     return next(e)

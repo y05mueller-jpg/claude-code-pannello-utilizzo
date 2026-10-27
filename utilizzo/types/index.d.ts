@@ -49,6 +49,6 @@ export type SpesaApprovata = { titolo: string; budget: number; ora: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAperto: boolean; tettoErrore: string }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAperto: boolean; tettoErrore: string; tettoDigitato: string }
   }
 }
