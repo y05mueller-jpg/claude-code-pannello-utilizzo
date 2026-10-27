@@ -39,7 +39,10 @@ The panel never reads or needs an API key and is not connected to any account.
 
 ## Spend approval banner
 
-If a job run through the API helper (`agente.py`) has a `--budget` above **$1.5**, it does not start: a one-line banner above the message box asks **Spend to approve · title · amount · Approve / No**. *Approve* lets that exact command run (this session only) and tells Claude to go ahead; *No* tells Claude to stop and suggest a cheaper way. The threshold is `SOGLIA_APPROVAZIONE` in `utilizzo/hooks/register.tsx`.
+If a job run through the API helper (`agente.py`) has a `--budget` above **$1.5**, it does not start: a one-line banner above the message box asks **Spend to approve · title · amount · Approve / No**. *Approve* lets that job run (same title + budget, for 30 minutes) and tells Claude to go ahead; *No* tells Claude to stop and suggest a cheaper way. The threshold is `SOGLIA_APPROVAZIONE` in `utilizzo/hooks/register.tsx`.
+
+## Cap for the current job
+Left of the **▤ Usage** button above the message box, **Cap: ×1** cycles through $2 / 3 rounds, $4 / 5, $8 / 8, $15 / 12, $25 / 16 (✕ goes back to default). The chosen cap and rounds replace the calculated ones in the text added to each message ("cap raised by Yannis for this job") and in the `agente.py --budget/--giri` command. A `--budget` up to the cap counts as already approved; above it the banner stays. It applies to this chat and resets when the job ends.
 
 ## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
@@ -62,7 +65,9 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
 Se usi anche OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, GLM, MiniMax, opencode, Kilo Code, Cline, Roo Code, Continue o Aider, in alto scegli quale strumento vedere o tutti insieme; c'è anche il riquadro con i prezzi API di tutti i fornitori. Con i crediti API configurati, dal 90% del piano ogni chat passa da sola i lavori all'aiutante che usa i crediti API; senza crediti si continua con il piano. Scelta automatica del modello: ogni chat dà ai subagenti il modello più economico adatto al lavoro (Haiku per cercare e riassumere, Sonnet per le modifiche normali, Opus per progettazione, 3D, siti nuovi) e l'aiutante API sceglie da solo con `--modello auto`; dietro ⓘ si vedono lavori e spesa per modello e il risparmio rispetto a Opus. Si spegne con `"scelta_modello": false`. Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
 
-Banner di approvazione spesa: un lavoro dell'aiutante API (`agente.py`) con `--budget` oltre **1,5 $** non parte finché non premi **Approva** o **No** nel banner sopra la casella dei messaggi (l'ok vale solo per questa sessione).
+Banner di approvazione spesa: un lavoro dell'aiutante API (`agente.py`) con `--budget` oltre **1,5 $** non parte finché non premi **Approva** o **No** nel banner sopra la casella dei messaggi (l'ok vale per titolo + budget, 30 minuti).
+
+**Tetto per il lavoro in corso**: a sinistra del pulsante Utilizzo, **Tetto: ×1** cicla 2 $ / 3 giri, 4 $ / 5, 8 $ / 8, 15 $ / 12, 25 $ / 16 (✕ torna al predefinito). Tetto e giri scelti sostituiscono quelli calcolati nel testo aggiunto a ogni messaggio e nel comando `agente.py --budget/--giri`; un `--budget` fino al tetto è già approvato, sopra resta il banner. Vale per questa chat e si azzera a fine lavoro.
 
 Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 

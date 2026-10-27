@@ -410,6 +410,18 @@ const spesaEn: TestiSpesa = {
 }
 export const TESTI_SPESA: Record<Lingua, TestiSpesa> = { it: spesaIt, en: spesaEn, de: spesaEn, fr: spesaEn, es: spesaEn }
 
+// ---- tetto per il lavoro in corso, accanto al pulsante Utilizzo ----
+export type TestiTetto = { predefinito: string; scelto: (usd: number, giri: number) => string; alzato: string }
+const tettoIt: TestiTetto = {
+  predefinito: 'Tetto: ×1', scelto: (u, g) => `Tetto: ${u} $ · ${g} giri`,
+  alzato: 'tetto alzato da Yannis per questo lavoro',
+}
+const tettoEn: TestiTetto = {
+  predefinito: 'Cap: ×1', scelto: (u, g) => `Cap: $${u} · ${g} rounds`,
+  alzato: 'cap raised by Yannis for this job',
+}
+export const TESTI_TETTO: Record<Lingua, TestiTetto> = { it: tettoIt, en: tettoEn, de: tettoEn, fr: tettoEn, es: tettoEn }
+
 // ---- altri strumenti (Codex, Gemini, Qwen…) e prezzi API di tutti i fornitori ----
 export type TestiAltri = {
   strumento: string; tutti: string; nessuno: (nomi: string) => string; errore: (nome: string, e: string) => string

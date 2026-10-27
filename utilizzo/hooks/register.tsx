@@ -4,8 +4,8 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Scelta, SpesaInAttesa } from '../types'
-import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_SPESA, codiceLingua, linguaNota, type Lingua } from './testi'
+import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
+import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -73,7 +73,18 @@ const usdOra = async ($: any): Promise<number> => { try { return Number((await $
 // non parte finché lui non risponde nel banner sopra la chat. Gli ok valgono solo per questa sessione.
 const SOGLIA_APPROVAZIONE = 1.5   // dollari
 const spesaInAttesa = atom({ plugin: 'utilizzo', key: 'spesaInAttesa' } as const, null as SpesaInAttesa | null)
-const spesaApprovate = atom({ plugin: 'utilizzo', key: 'spesaApprovate' } as const, [] as string[])
+// l'ok vale per titolo + budget (non per la stringa esatta del comando) e per 30 minuti
+const APPROVAZIONE_MS = 30 * 60 * 1000
+const spesaApprovate = atom({ plugin: 'utilizzo', key: 'spesaApprovate' } as const, [] as SpesaApprovata[])
+const titoloNorm = (t: string) => t.trim().toLowerCase()
+// senza --titolo l'ok non può valere per tutti i lavori senza titolo: lì conta il comando intero
+const chiaveSpesa = (titolo: string, comando: string) => (titolo.trim() ? titoloNorm(titolo) : comando)
+// tetto alzato da Yannis per il lavoro in corso (dollari; 0 = predefinito), accanto al pulsante Utilizzo. Vale per questa chat.
+// Un budget fino al tetto scelto è già approvato da lui; sopra il tetto il banner resta. Si azzera a fine lavoro (turn.complete).
+const TETTI = [{ usd: 2, giri: 3 }, { usd: 4, giri: 5 }, { usd: 8, giri: 8 }, { usd: 15, giri: 12 }, { usd: 25, giri: 16 }]
+const tettoLavoro = atom({ plugin: 'utilizzo', key: 'tettoLavoro' } as const, 0)
+let tettoInUso = false   // il tetto vale per la richiesta in corso (scelto prima dell'invio o durante il lavoro): finisce con la sua risposta
+const tettoDi = (usd: number) => TETTI.find(t => t.usd === usd)
 // budget e titolo di un comando che lancia agente.py (null se non è l'aiutante API)
 function spesaDi(comando: string): { budget: number; titolo: string } | null {
   if (!/agente\.py/.test(comando)) return null
@@ -88,7 +99,9 @@ async function guardiaSpesa($: any, e: any, next: any): Promise<any> {
     const comando = String((e as any).command ?? '').trim()
     const sp = spesaDi(comando)
     if (!sp || sp.budget <= SOGLIA_APPROVAZIONE) return next(e)
-    if ((await read($, spesaApprovate)).includes(comando)) return next(e)
+    if (sp.budget <= (await read($, tettoLavoro)) + 1e-9) return next(e)   // già scelto da Yannis con «Tetto»
+    const ora = Date.now(), nome = chiaveSpesa(sp.titolo, comando)
+    if ((await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === sp.budget)) return next(e)
     const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
     await update($, spesaInAttesa, () => ({ titolo: sp.titolo, budget: sp.budget, comando, ora: Date.now() }))
     return { deny: S.inAttesa(String(sp.budget)) }
@@ -384,15 +397,18 @@ export const register: Register = on => {
     if (e.command) return next(e)
     try {
       const testoPersona = String((e as any).text ?? '')
-      const liv = livelloDi(testoPersona), g = giriEffettivi(await read($, giri), liv), max = tetto(g, liv)
+      const liv = livelloDi(testoPersona)
+      const alzato = tettoDi(await read($, tettoLavoro))   // tetto scelto accanto a Utilizzo: sostituisce quello calcolato
+      tettoInUso = !!alzato
+      const g = alzato ? alzato.giri : giriEffettivi(await read($, giri), liv), max = alzato ? alzato.usd : tetto(g, liv)
       if (testoPersona.trim().length > 40) await update($, ultimoLivello, () => liv)
       usdInizio = await usdOra($)
       await update($, richieste, (v: Richiesta[]) => [{ ora: Date.now(), liv, stima: max, costo: 0, inCorso: true }, ...(v ?? []).filter(x => !x.inCorso)].slice(0, 15))
       const contesto: string[] = []
       // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
-      if (testoPersona.trim().length > 40) {
+      if (testoPersona.trim().length > 40 || alzato) {
         $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
-        contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro). Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
+        contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis${alzato ? ` (${TESTI_TETTO.it.alzato})` : ''}: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro).${alzato ? ` Se lanci agente.py usa --budget fino a ${max} e --giri ${g}; fino a ${max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
       }
       let L = await read($, limiti)
       try { const u = await $.session.usage(); L = (u.rateLimits ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt })) } catch (x) { /* gli ultimi letti */ }
@@ -428,6 +444,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
     if (e.agentId !== undefined) return r
+    if (tettoInUso) { tettoInUso = false; await update($, tettoLavoro, () => 0) }   // lavoro finito: torna il predefinito
     if (usdInizio >= 0) {
       const costo = Math.max(0, (await usdOra($)) - usdInizio)
       usdInizio = -1
@@ -498,7 +515,8 @@ export const register: Register = on => {
         <Text dimColor>{titolo}</Text>
         <Text bold color="#ffffff">{budget} $</Text>
         <Button key="spesa-approva" label={S.approva} variant="primary" onPress={async () => {
-          await update($, spesaApprovate, (v: string[]) => [...(v ?? []), attesa.comando])
+          const ora = Date.now()
+          await update($, spesaApprovate, (v: SpesaApprovata[]) => [...(v ?? []).filter(a => ora - a.ora < APPROVAZIONE_MS), { titolo: chiaveSpesa(attesa.titolo, attesa.comando), budget: attesa.budget, ora }])
           await update($, spesaInAttesa, () => null)
           void $.prompt.submit({ text: S.ok(budget, titolo) })
         }} />
@@ -510,17 +528,25 @@ export const register: Register = on => {
     )
   })
 
-  // pannello chiuso: un piccolo pulsante sopra la casella dei messaggi per riaprirlo
+  // sopra la casella dei messaggi, a destra: «Tetto» per il lavoro in corso e, a pannello chiuso, il pulsante per riaprirlo
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if ((e.props as any)?.hasSurvey || !(await read($, chiuso)) || (await read($, spesaInAttesa))) return next(e)   // con una spesa in attesa tocca al banner
+    if ((e.props as any)?.hasSurvey || (await read($, spesaInAttesa))) return next(e)   // con una spesa in attesa tocca al banner
     const { Box, Button } = $.ui.resolve(e) as any
+    const W = TESTI_TETTO[(linguaDa || 'it') as Lingua] ?? TESTI_TETTO.it
+    const scelto = tettoDi(await read($, tettoLavoro))
+    const prossimo = () => { const i = scelto ? TETTI.indexOf(scelto) + 1 : 0; return TETTI[i]?.usd ?? 0 }
+    const chiuso_ = await read($, chiuso)
     return (
-      <Box flexDirection="row" justifyContent="flex-end">
-        <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
-          void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
-          void update($, chiuso, () => false)
-          void aggiorna($)
-        }} />
+      <Box flexDirection="row" justifyContent="flex-end" gap={1}>
+        <Button key="tetto-lavoro" label={scelto ? W.scelto(scelto.usd, scelto.giri) : W.predefinito} onPress={() => { tettoInUso = !!(e.props as any)?.isWorking || usdInizio >= 0; void update($, tettoLavoro, () => prossimo()) }} />
+        {scelto ? <Button key="tetto-azzera" label="✕" onPress={() => { void update($, tettoLavoro, () => 0) }} /> : null}
+        {chiuso_ ? (
+          <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
+            void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
+            void update($, chiuso, () => false)
+            void aggiorna($)
+          }} />
+        ) : null}
       </Box>
     )
   })
