@@ -37,6 +37,10 @@ The panel never reads or needs an API key and is not connected to any account.
 
 **Automatic model choice (model routing).** In every chat the panel adds a short fixed section to Claude's instructions (it stays in the prompt cache, so it costs almost nothing): each subagent gets the cheapest model that can do its job — Haiku for searching, reading and summarising, Sonnet for ordinary changes, fixes and checks, Opus for design, 3D and rendering, new sites and apps, hard debugging. The API helper gets `--modello auto` and picks the model by itself. Behind **ⓘ** the panel shows jobs and spending per model and how much was saved compared with always using Opus. Turn it off with `"scelta_modello": false` in `config.json`.
 
+## Spend approval banner
+
+If a job run through the API helper (`agente.py`) has a `--budget` above **$1.5**, it does not start: a one-line banner above the message box asks **Spend to approve · title · amount · Approve / No**. *Approve* lets that exact command run (this session only) and tells Claude to go ahead; *No* tells Claude to stop and suggest a cheaper way. The threshold is `SOGLIA_APPROVAZIONE` in `utilizzo/hooks/register.tsx`.
+
 ## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
@@ -57,6 +61,8 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 
 Pannello laterale per l'app desktop di Claude Code: limiti, memoria della chat con compressione automatica al 40%, sessioni, messaggi, token e grafico giornaliero. I token si possono misurare in modo comprensibile: 1 Token = 1 pagina A4, 1 libro, 1 ora di scrittura o 1 token reale.
 Se usi anche OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, GLM, MiniMax, opencode, Kilo Code, Cline, Roo Code, Continue o Aider, in alto scegli quale strumento vedere o tutti insieme; c'è anche il riquadro con i prezzi API di tutti i fornitori. Con i crediti API configurati, dal 90% del piano ogni chat passa da sola i lavori all'aiutante che usa i crediti API; senza crediti si continua con il piano. Scelta automatica del modello: ogni chat dà ai subagenti il modello più economico adatto al lavoro (Haiku per cercare e riassumere, Sonnet per le modifiche normali, Opus per progettazione, 3D, siti nuovi) e l'aiutante API sceglie da solo con `--modello auto`; dietro ⓘ si vedono lavori e spesa per modello e il risparmio rispetto a Opus. Si spegne con `"scelta_modello": false`. Tutto viene contato sul tuo computer, senza mandare niente fuori. La lingua segue quella di Claude Code o del computer (italiano, inglese, tedesco, francese, spagnolo).
+
+Banner di approvazione spesa: un lavoro dell'aiutante API (`agente.py`) con `--budget` oltre **1,5 $** non parte finché non premi **Approva** o **No** nel banner sopra la casella dei messaggi (l'ok vale solo per questa sessione).
 
 Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 

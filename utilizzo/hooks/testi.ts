@@ -386,6 +386,30 @@ const apiEn: TestiApi = {
 }
 export const TESTI_API: Record<Lingua, TestiApi> = { it: apiIt, en: apiEn, de: apiEn, fr: apiEn, es: apiEn }
 
+// ---- banner di approvazione spesa sopra la chat (lavori API oltre la soglia) ----
+export type TestiSpesa = {
+  etichetta: string; approva: string; no: string
+  inAttesa: (budget: string) => string
+  ok: (budget: string, titolo: string) => string
+  rifiuto: (budget: string, titolo: string) => string
+  senzaTitolo: string
+}
+const spesaIt: TestiSpesa = {
+  etichetta: 'Spesa da approvare', approva: 'Approva', no: 'No',
+  inAttesa: b => `In attesa dell'ok di Yannis nel banner sopra la chat (spesa ${b} $). Non riprovare finché non arriva la sua risposta.`,
+  ok: (b, t) => `Ok, approvo la spesa di ${b} $ per «${t}»: procedi con lo stesso comando.`,
+  rifiuto: (b, t) => `No, non approvo la spesa di ${b} $ per «${t}». Fermati e proponi un'alternativa più economica.`,
+  senzaTitolo: 'lavoro API',
+}
+const spesaEn: TestiSpesa = {
+  etichetta: 'Spend to approve', approva: 'Approve', no: 'No',
+  inAttesa: b => `Waiting for the user's OK in the banner above the chat (spend $${b}). Do not retry until the answer arrives.`,
+  ok: (b, t) => `OK, I approve the $${b} spend for "${t}": go ahead with the same command.`,
+  rifiuto: (b, t) => `No, I do not approve the $${b} spend for "${t}". Stop and suggest a cheaper alternative.`,
+  senzaTitolo: 'API job',
+}
+export const TESTI_SPESA: Record<Lingua, TestiSpesa> = { it: spesaIt, en: spesaEn, de: spesaEn, fr: spesaEn, es: spesaEn }
+
 // ---- altri strumenti (Codex, Gemini, Qwen…) e prezzi API di tutti i fornitori ----
 export type TestiAltri = {
   strumento: string; tutti: string; nessuno: (nomi: string) => string; errore: (nome: string, e: string) => string

@@ -4,8 +4,8 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Scelta } from '../types'
-import { TESTI, TESTI_ALTRI, TESTI_API, codiceLingua, linguaNota, type Lingua } from './testi'
+import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Scelta, SpesaInAttesa } from '../types'
+import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_SPESA, codiceLingua, linguaNota, type Lingua } from './testi'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -69,6 +69,31 @@ const richieste = atom({ plugin: 'utilizzo', key: 'richieste' } as const, [] as 
 const costoSessione = atom({ plugin: 'utilizzo', key: 'costoSessione' } as const, 0)   // costo totale della chat aperta, prezzi API
 let usdInizio = -1   // costo della sessione quando è partita la richiesta in corso
 const usdOra = async ($: any): Promise<number> => { try { return Number((await $.session.usage()).cost?.usd ?? 0) } catch (x) { return 0 } }
+// banner di approvazione spesa (chiesto da Yannis il 27.10.2026): un lavoro dell'aiutante API con --budget oltre la soglia
+// non parte finché lui non risponde nel banner sopra la chat. Gli ok valgono solo per questa sessione.
+const SOGLIA_APPROVAZIONE = 1.5   // dollari
+const spesaInAttesa = atom({ plugin: 'utilizzo', key: 'spesaInAttesa' } as const, null as SpesaInAttesa | null)
+const spesaApprovate = atom({ plugin: 'utilizzo', key: 'spesaApprovate' } as const, [] as string[])
+// budget e titolo di un comando che lancia agente.py (null se non è l'aiutante API)
+function spesaDi(comando: string): { budget: number; titolo: string } | null {
+  if (!/agente\.py/.test(comando)) return null
+  const b = /--budget(?:\s+|=)["']?(\d+(?:[.,]\d+)?)/.exec(comando)
+  if (!b) return null
+  const t = /--titolo(?:\s+|=)(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(comando)
+  return { budget: Number((b[1] ?? '0').replace(',', '.')), titolo: (t?.[1] ?? t?.[2] ?? t?.[3] ?? '').trim() }
+}
+// il controllo del hook tool.call: un lavoro API sopra la soglia non parte, resta in attesa dell'ok nel banner
+async function guardiaSpesa($: any, e: any, next: any): Promise<any> {
+  try {
+    const comando = String((e as any).command ?? '').trim()
+    const sp = spesaDi(comando)
+    if (!sp || sp.budget <= SOGLIA_APPROVAZIONE) return next(e)
+    if ((await read($, spesaApprovate)).includes(comando)) return next(e)
+    const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
+    await update($, spesaInAttesa, () => ({ titolo: sp.titolo, budget: sp.budget, comando, ora: Date.now() }))
+    return { deny: S.inAttesa(String(sp.budget)) }
+  } catch (x) { return next(e) }
+}
 // altri strumenti (Codex, Gemini, Qwen…), quale si guarda ('claude', il loro id o 'tutti') e il riquadro dei prezzi di tutti i fornitori
 const altri = atom({ plugin: 'utilizzo', key: 'altri' } as const, null)
 const strumento = atom({ plugin: 'utilizzo', key: 'strumento' } as const, 'claude')
@@ -455,9 +480,39 @@ export const register: Register = on => {
     await update($, info, (v: string) => (v === id ? '' : id))
     return {}
   })
+  // lavoro API sopra la soglia: non parte, resta in attesa dell'ok nel banner sopra la chat
+  on('tool.call', { tool: 'Bash' }, ($, e, next) => guardiaSpesa($, e, next))
+  on('tool.call', { tool: 'PowerShell' }, ($, e, next) => guardiaSpesa($, e, next))
+
+  // il banner: una riga sopra la casella dei messaggi con la spesa da approvare
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const attesa = await read($, spesaInAttesa)
+    if ((e.props as any)?.hasSurvey || !attesa) return next(e)
+    const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
+    const { Box, Text, Button } = $.ui.resolve(e) as any
+    const titolo = (attesa.titolo || S.senzaTitolo).slice(0, 32)
+    const budget = String(attesa.budget)
+    return (
+      <Box flexDirection="row" gap={1}>
+        <Text color="#f59e0b">⚠ {S.etichetta}</Text>
+        <Text dimColor>{titolo}</Text>
+        <Text bold color="#ffffff">{budget} $</Text>
+        <Button key="spesa-approva" label={S.approva} variant="primary" onPress={async () => {
+          await update($, spesaApprovate, (v: string[]) => [...(v ?? []), attesa.comando])
+          await update($, spesaInAttesa, () => null)
+          void $.prompt.submit({ text: S.ok(budget, titolo) })
+        }} />
+        <Button key="spesa-no" label={S.no} onPress={async () => {
+          await update($, spesaInAttesa, () => null)
+          void $.prompt.submit({ text: S.rifiuto(budget, titolo) })
+        }} />
+      </Box>
+    )
+  })
+
   // pannello chiuso: un piccolo pulsante sopra la casella dei messaggi per riaprirlo
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if ((e.props as any)?.hasSurvey || !(await read($, chiuso))) return next(e)
+    if ((e.props as any)?.hasSurvey || !(await read($, chiuso)) || (await read($, spesaInAttesa))) return next(e)   // con una spesa in attesa tocca al banner
     const { Box, Button } = $.ui.resolve(e) as any
     return (
       <Box flexDirection="row" justifyContent="flex-end">

@@ -41,8 +41,11 @@ export type Altri = {
   link: Record<string, string>
 }
 
+// lavoro API oltre la soglia, fermo in attesa dell'ok nel banner sopra la chat
+export type SpesaInAttesa = { titolo: string; budget: number; comando: string; ora: number }
+
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: string[] }
   }
 }
