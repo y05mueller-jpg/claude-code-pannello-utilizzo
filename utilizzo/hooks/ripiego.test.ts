@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 const futuro = new Date(Date.now() + 3 * 86400000).toISOString()
 
@@ -96,4 +96,36 @@ test('caso 11: comandi slash, comandi di shell e messaggi interni non si deviano
   expect(nonDeviare({ text: '!git status' })).toBe(true)
   expect(nonDeviare({ text: 'interno', isMeta: true })).toBe(true)
   expect(nonDeviare({ text: 'Correggi il pannello' })).toBe(false)
+})
+
+// 0.9.3: dopo il riavvio del PC la sessione nuova non ha ancora letto i limiti (rateLimits vuoto fino alla prima risposta)
+test('sessione appena avviata, nessun dato nuovo, ultimo valore salvato 100% con reset futuro: il ripiego scatta', () => {
+  const salvati = JSON.parse(JSON.stringify([{ kind: 'five_hour', percentUsed: 24, resetsAt: futuro }, { kind: 'seven_day', percentUsed: 100, resetsAt: futuro }]))
+  const L = uniscFinestre([], limitiSalvati(salvati))   // sessione nuova: lettura vuota, solo i salvati in $.store
+  const pm = pianoMassimo(L, 'claude-opus-5-5')
+  expect(pm.piano).toBe(100)
+  expect(pm.kind).toBe('seven_day')
+  expect(deveRipiegare(true, pm.piano, 95, false)).toBe(true)
+  // la prima lettura vera con le sole 5 ore non toglie il settimanale salvato
+  expect(pianoMassimo(uniscFinestre([{ kind: 'five_hour', percentUsed: 25 }], L)).piano).toBe(100)
+})
+
+test('salvati con azzeramento passato, senza azzeramento o rovinati: non contano', () => {
+  const passato = [{ kind: 'seven_day', percentUsed: 100, resetsAt: '2020-01-01T00:00:00Z' }]
+  expect(deveRipiegare(true, pianoMassimo(limitiSalvati(passato)).piano, 95, false)).toBe(false)
+  expect(limitiSalvati([{ kind: 'seven_day', percentUsed: 100 }]).length).toBe(0)
+  expect(limitiSalvati(null).length).toBe(0)
+  expect(limitiSalvati([null, 3, { kind: 'seven_day', percentUsed: 'x', resetsAt: futuro }]).length).toBe(0)
+})
+
+test('lo stesso tipo da sessione e store vale una volta sola: il più recente', () => {
+  // stessa finestra: la più piena, in qualsiasi ordine (un'altra sessione con un valore più vecchio non lo abbassa)
+  const L = uniscFinestre([], [{ kind: 'seven_day', percentUsed: 90, resetsAt: futuro }, { kind: 'seven_day', percentUsed: 100, resetsAt: futuro }])
+  expect(L.length).toBe(1)
+  expect(pianoMassimo(L).piano).toBe(100)
+  // finestra nuova (azzeramento più lontano di giorni): vale quella, anche se più vuota
+  const dopo = new Date(Date.parse(futuro) + 7 * 86400000).toISOString()
+  expect(pianoMassimo(uniscFinestre([], [{ kind: 'seven_day', percentUsed: 100, resetsAt: futuro }, { kind: 'seven_day', percentUsed: 3, resetsAt: dopo }])).piano).toBe(3)
+  // la lettura di adesso vince sempre sulle vecchie
+  expect(pianoMassimo(uniscFinestre([{ kind: 'seven_day', percentUsed: 50, resetsAt: futuro }], L)).piano).toBe(50)
 })

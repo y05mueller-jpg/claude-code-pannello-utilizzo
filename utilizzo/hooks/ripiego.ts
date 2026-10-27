@@ -3,10 +3,25 @@ import type { Limite } from '../types'
 
 // Le finestre ancora valide: quelle nuove per tipo, più quelle già lette di un tipo che manca adesso
 // (la lettura può portare solo le 5 ore) finché non è passato il loro azzeramento.
+// 0.9.3: tra vecchie dello stesso tipo (salvate in $.store, di questa sessione, di altre sessioni) vale la più recente:
+// azzeramento più lontano = finestra più nuova; stessa finestra (azzeramento entro un'ora) = la più piena (l'uso cresce).
 export function uniscFinestre(nuove: Limite[], vecchie: Limite[], ora = Date.now()): Limite[] {
   const valida = (l: Limite) => !!l.resetsAt && Date.parse(l.resetsAt) > ora   // senza azzeramento noto non si tiene
-  const tipi = new Set(nuove.map(l => l.kind))
-  return [...nuove, ...vecchie.filter(l => !tipi.has(l.kind) && valida(l))]
+  const tipi = new Set(nuove.map(l => l.kind)), scelte = new Map<string, Limite>()
+  for (const l of vecchie) {
+    if (tipi.has(l.kind) || !valida(l)) continue
+    const c = scelte.get(l.kind), d = c ? Date.parse(l.resetsAt!) - Date.parse(c.resetsAt!) : 0
+    if (!c || d > 3600000 || (Math.abs(d) <= 3600000 && (Number(l.percentUsed) || 0) > (Number(c.percentUsed) || 0))) scelte.set(l.kind, l)
+  }
+  return [...nuove, ...scelte.values()]
+}
+// 0.9.3: le finestre salvate in $.store (sopravvivono al riavvio del PC). A sessione appena avviata il motore non ha
+// ancora letto i limiti (arrivano con la prima risposta): valgono queste, finché non è passato il loro azzeramento.
+export function limitiSalvati(x: unknown, ora = Date.now()): Limite[] {
+  if (!Array.isArray(x)) return []
+  const L = x.filter((l: any) => l && typeof l.kind === 'string' && Number.isFinite(Number(l.percentUsed)) && typeof l.resetsAt === 'string')
+    .map((l: any) => ({ kind: l.kind, percentUsed: Number(l.percentUsed), resetsAt: l.resetsAt }))
+  return uniscFinestre([], L, ora)
 }
 
 // Percentuale del piano = la finestra più piena: 5 ore, settimanale (tutti i modelli) e settimanale del modello in uso

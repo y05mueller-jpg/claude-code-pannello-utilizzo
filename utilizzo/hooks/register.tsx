@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { budgetRipiego, daYannisOrigine, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -333,19 +333,39 @@ async function lavoraRipiego($: any, r: { testo: string; titolo: string; budget:
 // decide se il messaggio va all'aiutante: null = no (resta al piano), altrimenti il motivo mostrato al posto del turno
 // i limiti letti adesso uniti a quelli già noti (una lettura può portare solo le 5 ore: il settimanale resta fino al suo azzeramento)
 const daLimiti = (x: any[]): Limite[] => (x ?? []).map((r: Limite) => ({ kind: r.kind, percentUsed: r.percentUsed, resetsAt: r.resetsAt }))
+// 0.9.3: i limiti restano anche in $.store, con l'azzeramento: dopo un riavvio del PC la sessione nuova non ha ancora
+// letto niente (rateLimits vuoto fino alla prima risposta), e senza questi il settimanale al 100% non faceva scattare il ripiego
+let apiProvata = 0   // ultima rilettura dei crediti chiesta dal ripiego (al massimo una al minuto)
+// Lo store si rilegge ogni volta (è un piccolo file): vale anche per più sessioni insieme, e per i valori scritti da altre.
+async function limitiConSalvati($: any): Promise<{ L: Limite[]; salvati: Limite[] }> {
+  const sess: Limite[] = (await read($, limiti)) ?? []
+  let salvati: Limite[] = []
+  try { salvati = limitiSalvati(await $.store.get('limiti')) } catch (x) { /* solo quelli della sessione */ }
+  // quelli senza azzeramento non si confrontano e restano; gli altri: il più recente tra sessione e store
+  return { L: uniscFinestre(sess.filter(l => !l.resetsAt), [...sess, ...salvati]), salvati }
+}
+async function limitiNoti($: any): Promise<Limite[]> {
+  const sess = (await read($, limiti)) ?? [], { L } = await limitiConSalvati($)
+  if (JSON.stringify(L) !== JSON.stringify(sess)) await update($, limiti, () => L)
+  return L
+}
 async function salvaLimiti($: any, nuove: Limite[]): Promise<Limite[]> {
-  const L = uniscFinestre(nuove, (await read($, limiti)) ?? [])
+  const { L: prima, salvati } = await limitiConSalvati($), L = uniscFinestre(nuove, prima)   // la lettura di adesso vince
   await update($, limiti, () => L)
+  const daSalvare = limitiSalvati(L)
+  if (JSON.stringify(daSalvare) !== JSON.stringify(salvati)) try { await $.store.set('limiti', daSalvare) } catch (x) { /* si riprova alla prossima lettura */ }
   return L
 }
 // daYannis = scritto da lui (composer, telefono, app desktop); altrimenti viene da altre sessioni o plugin: budget minimo
 async function ripiega($: any, testo: string, forza: boolean, daYannis = true): Promise<string | null> {
   const acceso = await read($, ripiegoAuto), soglia = await read($, ripiegoSoglia)
   if (!acceso || !testo.trim()) return null
-  let L = await read($, limiti)
+  let L = await limitiNoti($)   // anche a sessione appena avviata: gli ultimi salvati, se il loro azzeramento non è passato
   try { L = await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)) } catch (x) { /* gli ultimi letti */ }
   try { modelloInUso = String((await $.session.model()) ?? '') || modelloInUso } catch (x) { /* quello già letto */ }
-  const ap = await read($, api), p = passaggioApi(L, ap, soglia, acceso), R = testiRipiego()
+  let ap = await read($, api)
+  if (!ap?.presente && Date.now() - apiProvata > 60000 && (forza || limiteFinoA > 0 || pianoMassimo(L, modelloInUso).piano >= soglia)) try { apiProvata = Date.now(); await aggiornaApi($); ap = await read($, api) } catch (x) { /* senza crediti letti */ }   // appena avviata: crediti non ancora letti
+  const p = passaggioApi(L, ap, soglia, acceso), R = testiRipiego()
   if (limiteFinoA && Date.now() > limiteFinoA) limiteFinoA = 0   // la finestra piena si è azzerata
   if (!deveRipiegare(acceso, p.piano, soglia, limiteFinoA > 0, forza)) return null
   if (p.manca) { if (daYannis) $.ui.toast(R.manca(p.manca)); return null }   // senza crediti, chiave o aiutante si continua con il piano
@@ -499,6 +519,7 @@ export const register: Register = on => {
     try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
     try { const v = await $.store.get('ripiegoAuto'); if (typeof v === 'boolean') await update($, ripiegoAuto, () => v) } catch (x) { /* acceso */ }
     try { const v = Number(await $.store.get('ripiegoSoglia')); if (SOGLIE_RIPIEGO.includes(v)) await update($, ripiegoSoglia, () => v) } catch (x) { /* 95% */ }
+    try { await limitiNoti($) } catch (x) { /* al primo messaggio */ }   // i limiti salvati prima del riavvio: pannello e ripiego li hanno subito
     try { cartellaSessione = String((e as any).cwd ?? '') || (await $.process.run(['node', '-e', 'process.stdout.write(process.cwd())'], { timeoutMs: 10000 })).stdout.trim() } catch (x) { cartellaSessione = '' }
     try { const v = Number(await $.store.get('giri')); if (v === 0 || OPZIONI_GIRI.includes(v)) await update($, giri, () => v) } catch (x) { /* resta consigliato */ }
     // la lingua prima di aprire il pannello, così anche il titolo è nella lingua giusta
@@ -574,7 +595,7 @@ export const register: Register = on => {
     if (e.agentId !== undefined) return r
     try {
       const motivoFine = String((e as any).reason ?? ''), risposta = String(e.answer ?? '')
-      let L: Limite[] = (await read($, limiti)) ?? [], pieno = false
+      let L: Limite[] = await limitiNoti($), pieno = false
       if (motivoFine === 'error') try { L = await salvaLimiti($, daLimiti((await $.session.usage()).rateLimits)); pieno = pianoMassimo(L, modelloInUso).piano >= 100 } catch (x) { /* solo il testo */ }
       if (eErroreLimite(motivoFine, risposta) || pieno) {
           limiteFinoA = limiteFino(L, await read($, ripiegoSoglia))
