@@ -81,10 +81,28 @@ const titoloNorm = (t: string) => t.trim().toLowerCase()
 const chiaveSpesa = (titolo: string, comando: string) => (titolo.trim() ? titoloNorm(titolo) : comando)
 // tetto alzato da Yannis per il lavoro in corso (dollari; 0 = predefinito), accanto al pulsante Utilizzo. Vale per questa chat.
 // Un budget fino al tetto scelto è già approvato da lui; sopra il tetto il banner resta. Si azzera a fine lavoro (turn.complete).
-const TETTI = [{ usd: 2, giri: 3 }, { usd: 4, giri: 5 }, { usd: 8, giri: 8 }, { usd: 15, giri: 12 }, { usd: 25, giri: 16 }]
+const TETTI_USD = [2, 3, 4, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]   // le scelte dell'elenco; qualsiasi valore fino a TETTO_MAX si può anche digitare
+const TETTO_MAX = 60
+// scala tetto → giri: i punti fissi della 0.8.0 (2→3, 4→5, 8→8, 15→12, 25→16) e in mezzo si interpola; minimo 1, massimo 20 giri
+const SCALA_TETTO: [number, number][] = [[0, 0], [2, 3], [4, 5], [8, 8], [15, 12], [25, 16], [40, 19], [60, 20]]
+const giriPerTetto = (usd: number) => {
+  for (let i = 1; i < SCALA_TETTO.length; i++) {
+    const [x0, y0] = SCALA_TETTO[i - 1]!, [x1, y1] = SCALA_TETTO[i]!
+    if (usd <= x1) return Math.max(1, Math.min(20, Math.round(y0 + ((y1 - y0) * (usd - x0)) / (x1 - x0))))
+  }
+  return 20
+}
 const tettoLavoro = atom({ plugin: 'utilizzo', key: 'tettoLavoro' } as const, 0)
+const tettoAperto = atom({ plugin: 'utilizzo', key: 'tettoAperto' } as const, false)   // il menu a tendina del tetto
+const tettoErrore = atom({ plugin: 'utilizzo', key: 'tettoErrore' } as const, '')      // messaggio breve se il valore digitato non va
 let tettoInUso = false   // il tetto vale per la richiesta in corso (scelto prima dell'invio o durante il lavoro): finisce con la sua risposta
-const tettoDi = (usd: number) => TETTI.find(t => t.usd === usd)
+const tettoDi = (usd: number) => (usd > 0 ? { usd, giri: giriPerTetto(usd) } : undefined)
+// valore digitato: «7.5», «7,5» o «7,5 $»; null se non è un numero tra 0.5 e TETTO_MAX
+const leggiTetto = (t: string) => {
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*\$?\s*$/.exec(t)
+  const v = m ? Math.round(Number((m[1] ?? '').replace(',', '.')) * 100) / 100 : NaN
+  return v >= 0.5 && v <= TETTO_MAX ? v : null
+}
 // budget e titolo di un comando che lancia agente.py (null se non è l'aiutante API)
 function spesaDi(comando: string): { budget: number; titolo: string } | null {
   if (!/agente\.py/.test(comando)) return null
@@ -501,54 +519,84 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, ($, e, next) => guardiaSpesa($, e, next))
   on('tool.call', { tool: 'PowerShell' }, ($, e, next) => guardiaSpesa($, e, next))
 
-  // il banner: una riga sopra la casella dei messaggi con la spesa da approvare
+  // sopra la casella dei messaggi: il banner della spesa da approvare (se c'è) e, sulla stessa riga se c'è spazio, altrimenti sotto,
+  // «Tetto» per il lavoro in corso (a destra) e, a pannello chiuso, il pulsante per riaprirlo
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if ((e.props as any)?.hasSurvey) return next(e)
     const attesa = await read($, spesaInAttesa)
-    if ((e.props as any)?.hasSurvey || !attesa) return next(e)
+    const { Box, Text, Button, Input, Select } = $.ui.resolve(e) as any
     const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
-    const { Box, Text, Button } = $.ui.resolve(e) as any
-    const titolo = (attesa.titolo || S.senzaTitolo).slice(0, 32)
-    const budget = String(attesa.budget)
+    const W = TESTI_TETTO[(linguaDa || 'it') as Lingua] ?? TESTI_TETTO.it
+    const attuale = await read($, tettoLavoro)
+    const scelto = tettoDi(attuale)
+    const aperto = !!(await read($, tettoAperto)) && !!Select
+    const errore = await read($, tettoErrore)
+    const chiuso_ = await read($, chiuso)
+    const titolo = attesa ? (attesa.titolo || S.senzaTitolo).slice(0, 32) : ''
+    const budget = attesa ? String(attesa.budget) : ''
+    const imposta = (usd: number) => {
+      tettoInUso = !!(e.props as any)?.isWorking || usdInizio >= 0
+      void update($, tettoLavoro, () => usd)
+      void update($, tettoErrore, () => '')
+      void update($, tettoAperto, () => false)
+    }
+    // elenco: predefinito + le scelte (con i giri); un valore digitato fuori elenco compare al suo posto come voce attuale
+    const usdVoci = (attuale > 0 && !TETTI_USD.includes(attuale) ? [attuale, ...TETTI_USD] : TETTI_USD.slice()).sort((x, y) => x - y)
+    const voci = [{ value: '0', label: W.predefinito }, ...usdVoci.map(u => ({ value: String(u), label: W.scelto(u, giriPerTetto(u)) }))]
     return (
-      <Box flexDirection="row" gap={1}>
-        <Text color="#f59e0b">⚠ {S.etichetta}</Text>
-        <Text dimColor>{titolo}</Text>
-        <Text bold color="#ffffff">{budget} $</Text>
-        <Button key="spesa-approva" label={S.approva} variant="primary" onPress={async () => {
-          const ora = Date.now()
-          await update($, spesaApprovate, (v: SpesaApprovata[]) => [...(v ?? []).filter(a => ora - a.ora < APPROVAZIONE_MS), { titolo: chiaveSpesa(attesa.titolo, attesa.comando), budget: attesa.budget, ora }])
-          await update($, spesaInAttesa, () => null)
-          void $.prompt.submit({ text: S.ok(budget, titolo) })
-        }} />
-        <Button key="spesa-no" label={S.no} onPress={async () => {
-          await update($, spesaInAttesa, () => null)
-          void $.prompt.submit({ text: S.rifiuto(budget, titolo) })
-        }} />
+      <Box flexDirection="column">
+        <Box flexDirection="row" flexWrap="wrap" columnGap={1} justifyContent="space-between">
+          {attesa ? (
+            <Box key="spesa-banner" flexDirection="row" gap={1}>
+              <Text color="#f59e0b">⚠ {S.etichetta}</Text>
+              <Text dimColor>{titolo}</Text>
+              <Text bold color="#ffffff">{budget} $</Text>
+              <Button key="spesa-approva" label={S.approva} variant="primary" onPress={async () => {
+                const ora = Date.now()
+                await update($, spesaApprovate, (v: SpesaApprovata[]) => [...(v ?? []).filter(a => ora - a.ora < APPROVAZIONE_MS), { titolo: chiaveSpesa(attesa.titolo, attesa.comando), budget: attesa.budget, ora }])
+                await update($, spesaInAttesa, () => null)
+                void $.prompt.submit({ text: S.ok(budget, titolo) })
+              }} />
+              <Button key="spesa-no" label={S.no} onPress={async () => {
+                await update($, spesaInAttesa, () => null)
+                void $.prompt.submit({ text: S.rifiuto(budget, titolo) })
+              }} />
+            </Box>
+          ) : <Box />}
+          <Box key="tetto-riga" flexDirection="row" gap={1} alignSelf="flex-end">
+            <Button key="tetto-lavoro" label={`${scelto ? W.scelto(scelto.usd, scelto.giri) : W.predefinito} ${aperto ? '▴' : '▾'}`} onPress={() => { void update($, tettoErrore, () => ''); void update($, tettoAperto, (v: boolean) => !v) }} />
+            {scelto ? <Button key="tetto-azzera" label="✕" onPress={() => { void update($, tettoLavoro, () => 0); void update($, tettoAperto, () => false) }} /> : null}
+            {chiuso_ && !attesa ? (
+              <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
+                void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
+                void update($, chiuso, () => false)
+                void aggiorna($)
+              }} />
+            ) : null}
+          </Box>
+        </Box>
+        {aperto ? (
+          <Box key="tetto-menu" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+            {Input ? <Input key="tetto-digita" label="$" placeholder={W.digita(TETTO_MAX)} submitLabel={W.ok} autoFocus
+              onInput={() => { if (errore) void update($, tettoErrore, () => '') }}
+              onSubmit={(v: string) => { const u = leggiTetto(v); if (u === null) void update($, tettoErrore, () => W.nonValido(TETTO_MAX)); else imposta(u) }} /> : null}
+            {errore ? <Text color="#ef4444" size="caption">{errore}</Text> : null}
+            <Select key="tetto-elenco" options={voci} value={String(attuale)} onSelect={(v: string) => imposta(Number(v))} />
+          </Box>
+        ) : null}
       </Box>
     )
   })
 
-  // sopra la casella dei messaggi, a destra: «Tetto» per il lavoro in corso e, a pannello chiuso, il pulsante per riaprirlo
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if ((e.props as any)?.hasSurvey || (await read($, spesaInAttesa))) return next(e)   // con una spesa in attesa tocca al banner
-    const { Box, Button } = $.ui.resolve(e) as any
-    const W = TESTI_TETTO[(linguaDa || 'it') as Lingua] ?? TESTI_TETTO.it
-    const scelto = tettoDi(await read($, tettoLavoro))
-    const prossimo = () => { const i = scelto ? TETTI.indexOf(scelto) + 1 : 0; return TETTI[i]?.usd ?? 0 }
-    const chiuso_ = await read($, chiuso)
-    return (
-      <Box flexDirection="row" justifyContent="flex-end" gap={1}>
-        <Button key="tetto-lavoro" label={scelto ? W.scelto(scelto.usd, scelto.giri) : W.predefinito} onPress={() => { tettoInUso = !!(e.props as any)?.isWorking || usdInizio >= 0; void update($, tettoLavoro, () => prossimo()) }} />
-        {scelto ? <Button key="tetto-azzera" label="✕" onPress={() => { void update($, tettoLavoro, () => 0) }} /> : null}
-        {chiuso_ ? (
-          <Button key="riapri-utilizzo" label={`▤ ${T.titoloPannello}`} onPress={() => {
-            void $.ui.open({ id: PANNELLO, title: T.titoloPannello })
-            void update($, chiuso, () => false)
-            void aggiorna($)
-          }} />
-        ) : null}
-      </Box>
-    )
+  // clic fuori dal menu del tetto (il fuoco passa ad altro): il menu si chiude
+  on('ui.focus', { component: 'AbovePrompt' }, async ($, e, next) => {
+    try {
+      if (!String((e as any).element ?? '').startsWith('tetto-') && (!(e as any).plugin || (e as any).plugin === 'utilizzo') && (await read($, tettoAperto))) {
+        await update($, tettoAperto, () => false)
+        await update($, tettoErrore, () => '')
+      }
+    } catch (x) { /* il menu resta com'è */ }
+    return next(e)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {

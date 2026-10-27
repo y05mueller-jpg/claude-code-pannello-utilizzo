@@ -411,14 +411,16 @@ const spesaEn: TestiSpesa = {
 export const TESTI_SPESA: Record<Lingua, TestiSpesa> = { it: spesaIt, en: spesaEn, de: spesaEn, fr: spesaEn, es: spesaEn }
 
 // ---- tetto per il lavoro in corso, accanto al pulsante Utilizzo ----
-export type TestiTetto = { predefinito: string; scelto: (usd: number, giri: number) => string; alzato: string }
+export type TestiTetto = { predefinito: string; scelto: (usd: number, giri: number) => string; alzato: string; digita: (max: number) => string; ok: string; nonValido: (max: number) => string }
 const tettoIt: TestiTetto = {
   predefinito: 'Tetto: ×1', scelto: (u, g) => `Tetto: ${u} $ · ${g} giri`,
   alzato: 'tetto alzato da Yannis per questo lavoro',
+  digita: m => `Scrivi il tetto in $ (es. 7.5, max ${m})`, ok: 'ok', nonValido: m => `Valore non valido: da 0.5 a ${m} $`,
 }
 const tettoEn: TestiTetto = {
   predefinito: 'Cap: ×1', scelto: (u, g) => `Cap: $${u} · ${g} rounds`,
   alzato: 'cap raised by Yannis for this job',
+  digita: m => `Type the cap in $ (e.g. 7.5, max ${m})`, ok: 'ok', nonValido: m => `Invalid value: 0.5 to ${m} $`,
 }
 export const TESTI_TETTO: Record<Lingua, TestiTetto> = { it: tettoIt, en: tettoEn, de: tettoEn, fr: tettoEn, es: tettoEn }
 
