@@ -412,8 +412,8 @@ export const TESTI_SPESA: Record<Lingua, TestiSpesa> = { it: spesaIt, en: spesaE
 
 // ---- tetto per il lavoro in corso, accanto al pulsante Utilizzo ----
 export type TestiTetto = {
-  predefinito: string; scelto: (usd: number, giri: number) => string; alzato: string; digita: (max: number) => string; ok: string; nonValido: (max: number) => string
-  nGiri: (g: number) => string; elenco: (usd: number, giri: number) => string; previsto: (usd: number, tetto: number) => string; restano: (usd: number) => string; oltre: string
+  etichetta: string; auto: string; altro: string; alzato: string; digita: string; nonValido: (max: number) => string
+  nGiri: (g: number) => string; elenco: (usd: number, giri: number) => string; previsto: (usd: number, tetto: number) => string; oltre: string
 }
 // numeri con la virgola in italiano, il punto in inglese; «corto» toglie gli zeri inutili (15, 7,5)
 const numIt = (n: number, d: number) => n.toFixed(d).replace('.', ',')
@@ -421,16 +421,16 @@ const cortoIt = (n: number) => String(Number(n.toFixed(2))).replace('.', ',')
 const cortoEn = (n: number) => String(Number(n.toFixed(2)))
 const uguali = (a: number, b: number) => Math.abs(a - b) < 0.005
 const tettoIt: TestiTetto = {
-  predefinito: 'Tetto: ×1', nGiri: g => `${g} ${g === 1 ? 'giro' : 'giri'}`, elenco: (u, g) => `${cortoIt(u)} $ · ${tettoIt.nGiri(g)}`, scelto: (u, g) => `Tetto: ${cortoIt(u)} $ · ${tettoIt.nGiri(g)}`,
+  etichetta: 'Tetto', auto: 'auto', altro: 'Altro…', nGiri: g => `${g} ${g === 1 ? 'giro' : 'giri'}`, elenco: (u, g) => `${cortoIt(u)} $ · ${tettoIt.nGiri(g)}`,
   alzato: 'tetto alzato da Yannis per questo lavoro',
-  digita: m => `Scrivi il tetto in $ (es. 7,5, max ${m})`, ok: 'ok', nonValido: m => `Valore non valido: da 0,5 a ${m} $`,
-  previsto: (u, t) => uguali(u, t) ? `≈ ${cortoIt(u)} $ (tetto)` : `≈ ${numIt(u, 2)} $`, restano: u => `restano ${numIt(u, 1)} $`, oltre: '⚠',
+  digita: 'es. 7,5', nonValido: m => `non valido: 0,5–${m} $`,
+  previsto: (u, t) => uguali(u, t) ? `≈${cortoIt(u)} $` : `≈${numIt(u, 2)} $`, oltre: '⚠',
 }
 const tettoEn: TestiTetto = {
-  predefinito: 'Cap: ×1', nGiri: g => `${g} ${g === 1 ? 'round' : 'rounds'}`, elenco: (u, g) => `$${cortoEn(u)} · ${tettoEn.nGiri(g)}`, scelto: (u, g) => `Cap: $${cortoEn(u)} · ${tettoEn.nGiri(g)}`,
+  etichetta: 'Cap', auto: 'auto', altro: 'Other…', nGiri: g => `${g} ${g === 1 ? 'round' : 'rounds'}`, elenco: (u, g) => `$${cortoEn(u)} · ${tettoEn.nGiri(g)}`,
   alzato: 'cap raised by Yannis for this job',
-  digita: m => `Type the cap in $ (e.g. 7.5, max ${m})`, ok: 'ok', nonValido: m => `Invalid value: 0.5 to ${m} $`,
-  previsto: (u, t) => uguali(u, t) ? `≈ $${cortoEn(u)} (cap)` : `≈ $${u.toFixed(2)}`, restano: u => `$${u.toFixed(1)} left`, oltre: '⚠',
+  digita: 'e.g. 7.5', nonValido: m => `invalid: 0.5–${m} $`,
+  previsto: (u, t) => uguali(u, t) ? `≈$${cortoEn(u)}` : `≈$${u.toFixed(2)}`, oltre: '⚠',
 }
 export const TESTI_TETTO: Record<Lingua, TestiTetto> = { it: tettoIt, en: tettoEn, de: tettoEn, fr: tettoEn, es: tettoEn }
 
