@@ -540,3 +540,15 @@ const ripiegoEn: TestiRipiego = {
   contesto: 'Latest chat messages (context):',
 }
 export const TESTI_RIPIEGO: Record<Lingua, TestiRipiego> = { it: ripiegoIt, en: ripiegoEn, de: ripiegoEn, fr: ripiegoEn, es: ripiegoEn }
+
+// ---- 0.9.5: un solo box «API» nella barra laterale, chiuso di default ----
+export type TestiBox = { titolo: string; rimasti: (s: string) => string; ripiegoDal: (n: number) => string; ripiegoSpento: string; avviso: string }
+const boxIt: TestiBox = {
+  titolo: 'API', rimasti: s => `${s} rimasti`, ripiegoDal: n => `ripiego dal ${n}%`, ripiegoSpento: 'ripiego spento',
+  avviso: 'Crediti API finiti o scaduti',
+}
+const boxEn: TestiBox = {
+  titolo: 'API', rimasti: s => `${s} left`, ripiegoDal: n => `fallback at ${n}%`, ripiegoSpento: 'fallback off',
+  avviso: 'API credits used up or expired',
+}
+export const TESTI_BOX: Record<Lingua, TestiBox> = { it: boxIt, en: boxEn, de: boxEn, fr: boxEn, es: boxEn }

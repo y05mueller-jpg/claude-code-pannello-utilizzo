@@ -5,7 +5,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
-import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
+import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
 import { aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
@@ -58,6 +58,8 @@ const chiuso = atom({ plugin: 'utilizzo', key: 'chiuso' } as const, false)
 // crediti API (strumenti/api.js) e riquadro «Ricarica» aperto o chiuso
 const api = atom({ plugin: 'utilizzo', key: 'api' } as const, null)
 const apiAperto = atom({ plugin: 'utilizzo', key: 'apiAperto' } as const, false)
+// 0.9.5: il box unico «API» della barra (tutto ciò che riguarda l'API): chiuso di default, ricordato in $.store
+const boxApi = atom({ plugin: 'utilizzo', key: 'boxApi' } as const, false)
 // spiegazione dietro l'icona ⓘ accanto a «Ricarica e quanto costa» (chiesta dall'utente il 26.10.2026)
 const apiInfo = atom({ plugin: 'utilizzo', key: 'apiInfo' } as const, false)
 // quanti giri di loop al massimo per richiesta (scelti nel pannello, ricordati tra le chat in $.store)
@@ -232,7 +234,8 @@ const T_GIRI = {
   consigliato: 'consigliato',
   auto: 'Consigliato (automatico)',
   costoEffettivo: 'Costo effettivo',
-  sessione: 'Totale API di questa chat',
+  sessione: 'Valore della chat ai prezzi API (non speso)',
+  spesoVero: 'Speso davvero in crediti API',
   inCorso: 'in corso… ',
   nessuna: 'Nessuna richiesta ancora',
   totale: (n: number, t: string) => `Ultime ${n} richieste: ${t} in tutto (prezzi API)`,
@@ -581,6 +584,7 @@ export const register: Register = on => {
     const avviata = await next(e)
     try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
     try { const v = await $.store.get('ripiegoAuto'); if (typeof v === 'boolean') await update($, ripiegoAuto, () => v) } catch (x) { /* acceso */ }
+    try { const v = await $.store.get('boxApi'); if (typeof v === 'boolean') await update($, boxApi, () => v) } catch (x) { /* chiuso */ }
     try { const v = Number(await $.store.get('ripiegoSoglia')); if (SOGLIE_RIPIEGO.includes(v)) await update($, ripiegoSoglia, () => v) } catch (x) { /* 95% */ }
     try { await limitiNoti($) } catch (x) { /* al primo messaggio */ }
     // 0.9.4: messaggi rimasti in coda prima del riavvio: partono con il prossimo messaggio di Yannis (si unisce a loro)
@@ -871,7 +875,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
     const { Box, Text, Button, Select, Svg, Client, Link } = $.ui.resolve(e) as any
     const A = TESTI_API[(linguaDa || 'it') as Lingua] ?? TESTI_API.it
-    const ap = await read($, api), apApert = await read($, apiAperto), apInfo = await read($, apiInfo)
+    const ap = await read($, api), apApert = await read($, apiAperto), apInfo = await read($, apiInfo), boxAperto = await read($, boxApi)
     const autoRip = await read($, ripiegoAuto), sogliaRip = await read($, ripiegoSoglia)
     const X = TESTI_ALTRI[(linguaDa || 'it') as Lingua] ?? TESTI_ALTRI.en
     const alt = await read($, altri), str = await read($, strumento), przAperti = await read($, prezziAperti), forn = await read($, fornitore)
@@ -1060,7 +1064,8 @@ export const register: Register = on => {
         {Select
           ? <Select key="giri-costi" options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
           : <Text>{opzCosti[0]?.label}</Text>}
-        <Box flexDirection="row" justifyContent="space-between" marginTop={1}><Text>{T_GIRI.sessione}</Text><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
+        <Box flexDirection="row" justifyContent="space-between" marginTop={1} gap={1}><Box flexShrink={1}><Text>{T_GIRI.sessione}</Text></Box><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
+        {ap?.presente ? <Box flexDirection="row" justifyContent="space-between" gap={1}><Box flexShrink={1}><Text>{T_GIRI.spesoVero}</Text></Box><Text bold color="#ffffff">{soldi(ap.speso ?? 0)}</Text></Box> : null}
         {rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null}
       </Box>,
     )
@@ -1093,31 +1098,54 @@ export const register: Register = on => {
       </Box>
     ) : null
 
-    const parti: any[] = [
-      // solo mentre conta la prima volta; poi la riga sparisce
-      d ? null : <Text dimColor>{T.stoContando}</Text>,
-      sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>,
-        (() => {
-          if (!ap?.presente) return null
-          const pa = passaggioApi(L, ap, sogliaRip, autoRip)
-          const testo = pa.attivo ? X.apiAttivo(Math.round(pa.piano))
-            : pa.manca === 'chiave' ? X.apiChiave : pa.manca === 'agente' ? X.apiAgente : pa.manca === 'crediti' ? X.apiFiniti
-              : pa.manca === 'spento' ? X.apiSpento : X.apiPronto(sogliaRip)
-          const RR = testiRipiego()
-          return (
-            <Box flexDirection="column">
-              <Text size="caption" color={pa.attivo ? '#22c55e' : pa.manca && pa.manca !== 'spento' ? '#f59e0b' : undefined} dimColor={!pa.attivo && !pa.manca}>{testo}</Text>
-              <Box flexDirection="row" gap={1} flexWrap="wrap">
-                <Button key="ripiego-auto" label={`${autoRip ? '☑' : '☐'} ${RR.interruttore}`} onPress={async () => { const v = !autoRip; await update($, ripiegoAuto, () => v); try { await $.store.set('ripiegoAuto', v) } catch (x) { /* solo questa chat */ } }} />
-                {Select ? <Select key="ripiego-soglia" label={RR.soglia} options={SOGLIE_RIPIEGO.map(s => ({ value: String(s), label: `${s}%` }))} value={String(sogliaRip)}
-                  onSelect={async (v: string) => { const n = Number(v); await update($, ripiegoSoglia, () => n); try { await $.store.set('ripiegoSoglia', n) } catch (x) { /* solo questa chat */ } }} /> : null}
-              </Box>
-            </Box>
-          )
-        })()),
+    // ---- 0.9.5: tutto ciò che riguarda l'API in UN solo box, chiuso di default (la riga sola ricorda crediti e ripiego) ----
+    const BX = TESTI_BOX[(linguaDa || 'it') as Lingua] ?? TESTI_BOX.it
+    const rip0 = await read($, ripiego)
+    const pa = passaggioApi(L, ap, sogliaRip, autoRip)
+    // l'avviso solo se l'ultima lettura dice davvero crediti a 0 (o scaduti), o se l'aiutante ha avuto un errore di credito: mai perché manca altro
+    const erroreCredito = rip0?.stato === 'errore' && /credit balance|insufficient|billing|crediti? (?:finiti|esauriti)/i.test(rip0.testo ?? '')
+    const creditiFiniti = !!ap?.presente && (((ap.crediti ?? []).length > 0 && rimasto <= 0.5) || erroreCredito)   // senza crediti inseriti non c'è nulla da dire «finiti»
+    const ripiegoRiga = ap?.presente ? (() => {
+      const testo = creditiFiniti && !pa.attivo ? '' : pa.attivo ? X.apiAttivo(Math.round(pa.piano))
+        : pa.manca === 'chiave' ? X.apiChiave : pa.manca === 'agente' ? X.apiAgente
+          : pa.manca === 'spento' ? X.apiSpento : pa.manca === 'crediti' ? '' : X.apiPronto(sogliaRip)
+      const RR = testiRipiego()
+      return (
+        <Box flexDirection="column">
+          {testo ? <Text size="caption" color={pa.attivo ? '#22c55e' : pa.manca && pa.manca !== 'spento' ? '#f59e0b' : undefined} dimColor={!pa.attivo && !pa.manca}>{testo}</Text> : null}
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            <Button key="ripiego-auto" label={`${autoRip ? '☑' : '☐'} ${RR.interruttore}`} onPress={async () => { const v = !autoRip; await update($, ripiegoAuto, () => v); try { await $.store.set('ripiegoAuto', v) } catch (x) { /* solo questa chat */ } }} />
+            {Select ? <Select key="ripiego-soglia" label={RR.soglia} options={SOGLIE_RIPIEGO.map(s => ({ value: String(s), label: `${s}%` }))} value={String(sogliaRip)}
+              onSelect={async (v: string) => { const n = Number(v); await update($, ripiegoSoglia, () => n); try { await $.store.set('ripiegoSoglia', n) } catch (x) { /* solo questa chat */ } }} /> : null}
+          </Box>
+        </Box>
+      )
+    })() : null
+    const titoloBox = `${boxAperto ? '▾' : '▸'} ${BX.titolo}${ap?.presente ? ` · ${BX.rimasti(soldi(rimasto))}` : ''} · ${autoRip ? BX.ripiegoDal(sogliaRip) : BX.ripiegoSpento}`
+    const interni = [
+      creditiFiniti ? <Text size="caption" color="#f59e0b">● {X.apiFiniti}</Text> : null,
+      ripiegoRiga,
       (ap as any)?.presente ? sezioneApi : null,
       sezioneGiri,
       sezionePrezzi,
+    ].filter(Boolean)
+    const sezioneBox = (
+      <Box flexDirection="column-reverse" borderStyle="round" borderDimColor paddingX={1} gap={1}>
+        {[
+          <Box flexDirection="row" alignItems="center" gap={1}>
+            <Button key="box-api" label={titoloBox} onPress={() => { const v = !boxAperto; void update($, boxApi, () => v); try { void Promise.resolve($.store.set('boxApi', v)).catch(() => {}) } catch (x) { /* solo questa chat */ } }} />
+            {creditiFiniti && !boxAperto ? <Text color="#f59e0b">●</Text> : null}
+          </Box>,
+          boxAperto ? <Box flexDirection="column-reverse" gap={1}>{[...interni].reverse()}</Box> : null,
+        ].filter(Boolean).reverse()}
+      </Box>
+    )
+
+    const parti: any[] = [
+      // solo mentre conta la prima volta; poi la riga sparisce
+      d ? null : <Text dimColor>{T.stoContando}</Text>,
+      sezione(T.sezLimiti, <Box flexDirection="column" gap={1}>{righeLimiti}</Box>),
+      sezioneBox,
       sezione(T.sezMemoria,
         // comprimere adesso: Claude riassume la chat e libera memoria, senza aspettare il 97%. Chiede conferma.
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
