@@ -1292,12 +1292,11 @@ export const register: Register = on => {
         // accanto a «bloccate» una piccola ⓘ: la nota sugli altri strumenti compare solo passandoci sopra (key sul Box visibile, mai su quello nascosto)
         <Box key="sessioni-riga" position="relative" flexDirection="row" gap={1}>
           <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>
-          {!trovati.length && alt ? <Text dimColor>ⓘ</Text> : null}
-          {!trovati.length && alt ? (
-            <Box position="absolute" top={1} left={0} right={0} display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
-              <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text>
-            </Box>
-          ) : null}
+          <Text dimColor>ⓘ</Text>
+          <Box position="absolute" top={1} left={0} right={0} display="none" hover={{ display: 'flex' }} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+            <Text size="caption" color="#e2e8f0">{T.notaStati}</Text>
+            {!trovati.length && alt ? <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text> : null}
+          </Box>
         </Box>,
         <Text dimColor>{T.suTot(t.sessioni)}</Text>,
         ...erroriAltri),
@@ -1448,9 +1447,7 @@ export const register: Register = on => {
           : null}
       </Box>,
     )
-    // nota e firma centrate nella barra: il testo non ha allineamento, quindi lo spezzo in righe corte (parole intere) e centro ognuna
-    const righeCentrate = (s: string, max = 42) => { const r: string[] = []; let c = ''; for (const w of s.split(' ')) { if (c && (c + ' ' + w).length > max) { r.push(c); c = w } else c = c ? c + ' ' + w : w } if (c) r.push(c); return r }
-    parti.push(<Box flexDirection="column" alignItems="center" width="100%">{righeCentrate(T.notaStati).map((r, i) => <Text key={`nota-${i}`} dimColor>{r}</Text>)}</Box>)
+    // firma centrata in fondo (la nota sugli stati sta nella ⓘ accanto a «bloccate»)
     parti.push(<Box flexDirection="column" alignItems="center" width="100%"><Text dimColor size="footnote">{T.creatoDa}</Text></Box>)   // firma dell'autore
 
     return <Box flexDirection="column-reverse" gap={1}>{[...parti].reverse()}</Box>
