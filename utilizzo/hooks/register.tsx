@@ -954,10 +954,12 @@ export const register: Register = on => {
         [T.scrittiClaude, mis(c.output), T.tokenRisposta],
         [T.nuoviEntrata, mis(c.input + c.cacheScritta), T.tokenPrimaVolta],
       ]
+      // tutti i riquadri larghi come quello con la scritta più lunga (celle di carattere: testo + spazi + bordo)
+      const largRiquadro = Math.max(...voci.map(v => Math.max(v[0].length, v[1].length))) + 4
       const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" flexGrow={0} flexShrink={0} borderStyle="bold" paddingX={1} paddingY={0}>
+        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" width={largRiquadro} flexGrow={0} flexShrink={0} borderStyle="bold" paddingX={1} paddingY={0}>
           {Client && !senzaClic
             ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore }} />
             : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>]}
