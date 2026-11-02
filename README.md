@@ -9,7 +9,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 - **Totals**: messages sent, requests, tokens (total, cache reads, written by Claude, written by you, new input), per message; click a box for its explanation
 - **Readable token unit**: choose what 1 Token equals — one A4 page, one book, one hour of writing, or one real token
 - **Daily chart** by day / month / year, and usage **per chat** for the selected month
-- **API credits**: credit left with a bar, and a **Top up and what it costs** box (cost per kind of job, model prices, how to top up). Behind the small **ⓘ** icon: expiry date, jobs done with the API, and what this chat, today and this month would cost at API prices (Opus 5.5)
+- **API credits**: estimated credit left (≈, calculated from the jobs recorded; a **Real balance ↗** link opens the Console) with a bar, and a **Top up and what it costs** box (cost per kind of job, model prices, how to top up). Behind the small **ⓘ** icon: expiry date, jobs done with the API, and what this chat, today and this month would cost at API prices (Opus 5.5)
 
 - **Other tools**: if you also use OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue or Aider, a selector lets you see each one or all together (Codex limits included)
 - **API prices of all providers**: Anthropic, OpenAI, Google, DeepSeek, Alibaba, Moonshot, Z.ai, MiniMax and xAI, with a link to each official pricing page
@@ -50,7 +50,8 @@ When the 5-hour or weekly plan reaches the threshold (95% by default, adjustable
 
 0.9.1: the plan percentage is the fullest window (5-hour, weekly all models, weekly of the model in use), so a full weekly limit triggers the switch even when the 5-hour one is low; plan extra usage credits are not used for work while API credits are available. Budget per message: short questions 0.30 $, medium work 1 $, heavy work the chosen cap; messages from other sessions or plugins 0.30 $.
 
-## VS Code, Cursor, Windsurf — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
+0.9.7: the API credit shown is an **estimate** ("≈ 15.26 $ (estimate)": credits loaded minus the jobs recorded in `uso.jsonl`), with a **Real balance ↗** link to https://platform.claude.com/settings/billing. If the API helper returns a credit error ("credit balance is too low", "out of usage credits", 400/402), the estimate goes to 0 $ and the panel says "Credits used up according to Anthropic" until a later job succeeds or more credit is loaded. The text added to each message asks for "level and rounds" only when the job does not run on API credits; cost and "maximum spend at API prices" only when it does. Bar labels: "API price of the general chat (theoretical)" and "Actual spending in API credits".
+ — Claude, Codex, Gemini, Qwen, Kimi, GLM, MiniMax and more
 
 The [`vscode`](vscode) folder contains the same panel as an editor extension for **VS Code, Cursor and Windsurf**.
 It adapts to your tools by itself: it counts **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue and Aider** usage found on the computer (any model, DeepSeek included) and shows only what it finds; with more than one tool, a selector lets you see each one or all together.

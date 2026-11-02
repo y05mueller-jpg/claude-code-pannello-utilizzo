@@ -171,7 +171,7 @@
       }
     }
     let h = '';
-    if (tot > 0) h += `<p>${esc(A.rimasti(soldi(rimasto), soldi(tot)))}</p>${barra((100 * rimasto) / tot, rimasto / tot < 0.2 ? '#ef4444' : '#22c55e')}`;
+    if (tot > 0) h += `<p title="${esc(A.saldoNota)}">${esc(A.rimasti(soldi(rimasto), soldi(tot)))} <a href="#" data-azione="link" data-v="saldo-anthropic" title="${esc(A.saldoNota)}">${esc(A.saldoVero)}</a></p>${barra((100 * rimasto) / tot, rimasto / tot < 0.2 ? '#ef4444' : '#22c55e')}`;
     if (st.apiInfo) {
       // the details open above the box, only after a tap on ⓘ
       const righe = crediti.filter(c => c.scadenza).map(c => {

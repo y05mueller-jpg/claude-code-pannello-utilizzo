@@ -185,3 +185,77 @@ test('Tetto caso 3: l’API serve (piano pieno) ma crediti finiti → solo giri 
 test('Tetto caso 3b: errore di credito durante il lavoro API → ⚠, mai costo', () => {
   expect(modoTetto({ ...base, inUso: true, creditiOk: false, finiti: true })).toBe('finiti')
 })
+
+// ---- 0.9.7: saldo = stima; errore di credito dell'aiutante -> 0 $ e «finiti secondo Anthropic» ----
+import { SALDO_URL, eErroreCredito, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti } from './ripiego'
+
+test('0.9.7: il saldo è una stima: caricati meno registrati (il caso del 27.10: 100 $ - 84,74 $ ≈ 15,26 $)', () => {
+  expect(Math.round(stimaSaldo(100, 84.74, null) * 100) / 100).toBe(15.26)
+  expect(stimaSaldo(100, 120, null)).toBe(0)
+  expect(SALDO_URL).toBe('https://platform.claude.com/settings/billing')
+})
+
+test('0.9.7: errori di credito riconosciuti in ogni forma; il limite del piano no', () => {
+  expect(eErroreCredito('Credit balance is too low')).toBe(true)
+  expect(eErroreCredito('Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing')).toBe(true)
+  expect(eErroreCredito("You're out of usage credits")).toBe(true)
+  expect(eErroreCredito('API Error: 400 {"type":"invalid_request_error","message":"credit balance is low"}')).toBe(true)
+  expect(eErroreCredito('HTTP 402 Payment Required: billing issue')).toBe(true)
+  expect(eErroreCredito('crediti finiti')).toBe(true)
+  expect(eErroreCredito("You've hit your weekly limit")).toBe(false)
+  expect(eErroreCredito('out of extra usage')).toBe(false)
+  expect(eErroreCredito('Lavoro finito: tutto a posto')).toBe(false)
+})
+
+test('0.9.7: errore di credito -> stima subito a 0 $; vale finché un lavoro successivo non riesce', () => {
+  const caricati = 100, speso = 84.74
+  const segno = segnoDopoLavoro(null, false, 'Credit balance is too low', caricati, 1000)
+  expect(segno).toEqual({ caricati: 100, ora: 1000 })
+  expect(stimaSaldo(caricati, speso, segno)).toBe(0)
+  expect(finitiSecondoAnthropic(segno, caricati)).toBe(true)
+  // un altro errore (rete, limite) non cambia niente
+  expect(segnoDopoLavoro(segno, false, 'timeout di rete', caricati, 2000)).toEqual(segno)
+  // un lavoro successivo riesce: il segno si toglie e la stima torna a quella calcolata
+  const dopo = segnoDopoLavoro(segno, true, '', caricati, 3000)
+  expect(dopo).toBe(null)
+  expect(Math.round(stimaSaldo(caricati, speso, dopo) * 100) / 100).toBe(15.26)
+  // oppure c'è una riga «ok» in uso.jsonl più recente (lavoro lanciato a mano)
+  expect(finitiSecondoAnthropic(segno, caricati, 5000)).toBe(false)
+  expect(finitiSecondoAnthropic(segno, caricati, 500)).toBe(true)
+})
+
+test('0.9.7: una ricarica (crediti caricati in più) toglie il «finiti»; il segno si salva e si rilegge', () => {
+  const segno = { caricati: 100, ora: 1000 }
+  expect(finitiSecondoAnthropic(segno, 100)).toBe(true)
+  expect(finitiSecondoAnthropic(segno, 150)).toBe(false)
+  expect(Math.round(stimaSaldo(150, 84.74, segno) * 100) / 100).toBe(65.26)
+  expect(leggiSegno(JSON.parse(JSON.stringify(segno)))).toEqual(segno)
+  expect(leggiSegno('x')).toBe(null)
+  expect(leggiSegno(null)).toBe(null)
+})
+
+test('0.9.7: testo ai messaggi, lavoro NON sui crediti API: solo livello e giri, niente costo né «ai prezzi API»', () => {
+  const t = testoLimiti({ liv: 'medio', modello: 'Sonnet', g: 2, max: 1, costoGiro: 0.4, suApi: false })
+  expect(t).toContain('al massimo 2 giri')
+  expect(t).toContain('la stima: livello e giri')
+  expect(t).not.toContain('costo')
+  expect(t).not.toContain('prezzi API')
+  expect(t).not.toContain('spesa massima')
+  expect(t).not.toContain('$')
+  expect(t).not.toContain('agente.py')
+  const alzato = testoLimiti({ liv: 'pesante', modello: 'Opus', g: 12, max: 15, costoGiro: 2.5, suApi: false, alzato: 'tetto scelto' })
+  expect(alzato).toContain('al massimo 12 giri')
+  expect(alzato).not.toContain('$')
+  expect(alzato).not.toContain('--budget')
+})
+
+test('0.9.7: testo ai messaggi, lavoro sui crediti API: livello, giri e costo con la spesa massima ai prezzi API', () => {
+  const t = testoLimiti({ liv: 'pesante', modello: 'Opus', g: 3, max: 8.75, costoGiro: 2.5, suApi: true })
+  expect(t).toContain('al massimo 3 giri')
+  expect(t).toContain('spesa massima circa 8.75 $ ai prezzi API')
+  expect(t).toContain('la stima: livello, giri, costo')
+  expect(t).not.toContain('--budget')
+  const alzato = testoLimiti({ liv: 'pesante', modello: 'Opus', g: 12, max: 15, costoGiro: 2.5, suApi: true, alzato: 'tetto scelto' })
+  expect(alzato).toContain('--budget fino a 15 e --giri 12')
+  expect(testoLimiti({ liv: 'leggero', modello: 'Haiku', g: 1, max: 0.08, costoGiro: 0.05, suApi: true })).toContain('al massimo 1 giro ')
+})

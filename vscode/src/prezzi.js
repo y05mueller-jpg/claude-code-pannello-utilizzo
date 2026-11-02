@@ -84,6 +84,7 @@ const LINK = {
   'prezzi-zhipu': 'https://docs.z.ai/guides/overview/pricing',
   'prezzi-minimax': 'https://platform.minimax.io/docs/guides/pricing',
   'prezzi-xai': 'https://docs.x.ai/docs/models',
+  'saldo-anthropic': 'https://platform.claude.com/settings/billing',
   'ricarica-anthropic': 'https://console.anthropic.com/settings/billing',
   'ricarica-openai': 'https://platform.openai.com/settings/organization/billing',
 };

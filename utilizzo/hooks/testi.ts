@@ -292,6 +292,7 @@ export const TESTI: Record<Lingua, Testi> = { it, en, de, fr, es }
 
 // ---- sezione «Crediti API» ----
 export type TestiApi = {
+  saldoNota: string; saldoVero: string; anthropicFiniti: string
   sez: string; rimasti: (r: string, tot: string) => string; scade: (q: string, giorni: number) => string; scaduto: (q: string) => string
   nessunCredito: string; lavori: (n: number, speso: string) => string
   questaChat: (c: string) => string; oggiMese: (o: string, m: string) => string; stima: string
@@ -302,7 +303,8 @@ export type TestiApi = {
 }
 const apiIt: TestiApi = {
   sez: 'Crediti API',
-  rimasti: (r, tot) => `Rimasti ${r} di ${tot}`,
+  rimasti: (r, tot) => `Rimasti ≈ ${r} di ${tot} (stima)`,
+  saldoNota: 'Calcolato dai lavori registrati, il saldo vero è nella Console', saldoVero: 'Saldo vero ↗', anthropicFiniti: 'Crediti finiti secondo Anthropic',
   scade: (q, g) => `Scade ${q} (tra ${g} ${g === 1 ? 'giorno' : 'giorni'})`,
   scaduto: q => `Scaduto ${q}`,
   nessunCredito: 'Nessun credito API attivo.',
@@ -344,7 +346,8 @@ const apiIt: TestiApi = {
 }
 const apiEn: TestiApi = {
   sez: 'API credits',
-  rimasti: (r, tot) => `${r} left of ${tot}`,
+  rimasti: (r, tot) => `≈ ${r} left of ${tot} (estimate)`,
+  saldoNota: 'Calculated from the jobs recorded, the real balance is in the Console', saldoVero: 'Real balance ↗', anthropicFiniti: 'Credits used up according to Anthropic',
   scade: (q, g) => `Expires ${q} (in ${g} ${g === 1 ? 'day' : 'days'})`,
   scaduto: q => `Expired ${q}`,
   nessunCredito: 'No active API credit.',
@@ -510,7 +513,7 @@ type TestiRipiego = {
   interruttore: string; soglia: string; contesto: string
 }
 const ripiegoIt: TestiRipiego = {
-  riga: r => `Piano finito → lavoro con i crediti API (${r} rimasti)…`, parte: r => `Piano quasi finito: lavoro con i crediti API (${r} rimasti)`,
+  riga: r => `Piano finito → lavoro con i crediti API (≈ ${r} rimasti)…`, parte: r => `Piano quasi finito: lavoro con i crediti API (≈ ${r} rimasti)`,
   fatto: c => `✓ Lavoro con i crediti API finito · costo ${c} $`, finito: c => `Lavoro con i crediti API finito: costo ${c} $`,
   fallito: 'Lavoro con i crediti API non riuscito', attesa: b => `Ripiego sui crediti API: serve l’ok nel banner (spesa ${b})`,
   giaInCorso: 'L’aiutante API sta già lavorando: questo messaggio non è partito, rimandalo quando finisce (riga sopra la chat)',
@@ -525,7 +528,7 @@ const ripiegoIt: TestiRipiego = {
   contesto: 'Ultimi messaggi della chat (contesto):',
 }
 const ripiegoEn: TestiRipiego = {
-  riga: r => `Plan used up → working with API credits (${r} left)…`, parte: r => `Plan almost used up: working with API credits (${r} left)`,
+  riga: r => `Plan used up → working with API credits (≈ ${r} left)…`, parte: r => `Plan almost used up: working with API credits (≈ ${r} left)`,
   fatto: c => `✓ API-credit job done · cost $${c}`, finito: c => `API-credit job done: cost $${c}`,
   fallito: 'API-credit job failed', attesa: b => `Switch to API credits: approve in the banner (spend ${b})`,
   giaInCorso: 'The API helper is already working: this message was not sent, send it again when it finishes (line above the chat)',
@@ -544,11 +547,11 @@ export const TESTI_RIPIEGO: Record<Lingua, TestiRipiego> = { it: ripiegoIt, en: 
 // ---- 0.9.5: un solo box «API» nella barra laterale, chiuso di default ----
 export type TestiBox = { titolo: string; rimasti: (s: string) => string; ripiegoDal: (n: number) => string; ripiegoSpento: string; avviso: string }
 const boxIt: TestiBox = {
-  titolo: 'API', rimasti: s => `${s} rimasti`, ripiegoDal: n => `ripiego dal ${n}%`, ripiegoSpento: 'ripiego spento',
+  titolo: 'API', rimasti: s => `≈ ${s} (stima)`, ripiegoDal: n => `ripiego dal ${n}%`, ripiegoSpento: 'ripiego spento',
   avviso: 'Crediti API finiti o scaduti',
 }
 const boxEn: TestiBox = {
-  titolo: 'API', rimasti: s => `${s} left`, ripiegoDal: n => `fallback at ${n}%`, ripiegoSpento: 'fallback off',
+  titolo: 'API', rimasti: s => `≈ ${s} (estimate)`, ripiegoDal: n => `fallback at ${n}%`, ripiegoSpento: 'fallback off',
   avviso: 'API credits used up or expired',
 }
 export const TESTI_BOX: Record<Lingua, TestiBox> = { it: boxIt, en: boxEn, de: boxEn, fr: boxEn, es: boxEn }

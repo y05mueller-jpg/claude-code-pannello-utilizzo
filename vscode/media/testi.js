@@ -41,7 +41,7 @@
     notaStati: 'Gli stati «al lavoro / ferma / bloccata» sono stimati dai file delle chat.',
     privacy: 'Contato su questo computer dai file delle chat: solo numeri. Niente rete, niente chiavi API, niente testo dei messaggi.',
     api: {
-      sez: 'Crediti API', rimasti: (r, tot) => `Rimasti ${r} di ${tot}`,
+      sez: 'Crediti API', rimasti: (r, tot) => `Rimasti ≈ ${r} di ${tot} (stima)`, saldoVero: 'Saldo vero ↗', saldoNota: 'Calcolato dai lavori registrati, il saldo vero è nella Console',
       scade: (q, g) => `Scade ${q} (tra ${g} ${g === 1 ? 'giorno' : 'giorni'})`, scaduto: q => `Scaduto ${q}`,
       nessunCredito: 'Nessun credito API attivo.', lavori: (n, s) => `Lavori fatti con l'API: ${n} · spesi ${s}`,
       oggiMese: (o, m) => `Se pagati con l'API: oggi circa ${o} · questo mese circa ${m}`,
@@ -96,7 +96,7 @@
     notaStati: 'The states "working / idle / blocked" are estimated from the chat files.',
     privacy: 'Counted on this computer from the chat files: numbers only. No network, no API keys, no message text.',
     api: {
-      sez: 'API credits', rimasti: (r, tot) => `${r} left of ${tot}`,
+      sez: 'API credits', rimasti: (r, tot) => `≈ ${r} left of ${tot} (estimate)`, saldoVero: 'Real balance ↗', saldoNota: 'Calculated from the jobs recorded, the real balance is in the Console',
       scade: (q, g) => `Expires ${q} (in ${g} ${g === 1 ? 'day' : 'days'})`, scaduto: q => `Expired ${q}`,
       nessunCredito: 'No active API credit.', lavori: (n, s) => `Jobs done with the API: ${n} · spent ${s}`,
       oggiMese: (o, m) => `If paid with the API: today about ${o} · this month about ${m}`,
@@ -151,7 +151,7 @@
     notaStati: 'Die Zustände «aktiv / ruhend / blockiert» werden aus den Chat-Dateien geschätzt.',
     privacy: 'Auf diesem Computer aus den Chat-Dateien gezählt: nur Zahlen. Kein Netzwerk, keine API-Schlüssel, kein Nachrichtentext.',
     api: {
-      sez: 'API-Guthaben', rimasti: (r, tot) => `${r} von ${tot} übrig`,
+      sez: 'API-Guthaben', rimasti: (r, tot) => `≈ ${r} von ${tot} übrig (Schätzung)`, saldoVero: 'Echtes Guthaben ↗', saldoNota: 'Aus den erfassten Aufgaben berechnet, das echte Guthaben steht in der Console',
       scade: (q, g) => `Läuft ab ${q} (in ${g} ${g === 1 ? 'Tag' : 'Tagen'})`, scaduto: q => `Abgelaufen ${q}`,
       nessunCredito: 'Kein aktives API-Guthaben.', lavori: (n, s) => `Arbeiten mit der API: ${n} · ausgegeben ${s}`,
       oggiMese: (o, m) => `Mit der API bezahlt: heute etwa ${o} · diesen Monat etwa ${m}`,
@@ -206,7 +206,7 @@
     notaStati: 'Les états « au travail / arrêtée / bloquée » sont estimés à partir des fichiers des chats.',
     privacy: 'Compté sur cet ordinateur à partir des fichiers des chats : uniquement des nombres. Pas de réseau, pas de clés API, pas de texte des messages.',
     api: {
-      sez: 'Crédits API', rimasti: (r, tot) => `Il reste ${r} sur ${tot}`,
+      sez: 'Crédits API', rimasti: (r, tot) => `Il reste ≈ ${r} sur ${tot} (estimation)`, saldoVero: 'Solde réel ↗', saldoNota: 'Calculé d’après les tâches enregistrées, le solde réel est dans la Console',
       scade: (q, g) => `Expire ${q} (dans ${g} ${g === 1 ? 'jour' : 'jours'})`, scaduto: q => `Expiré ${q}`,
       nessunCredito: 'Aucun crédit API actif.', lavori: (n, s) => `Travaux faits avec l'API : ${n} · dépensé ${s}`,
       oggiMese: (o, m) => `Payé avec l'API : aujourd'hui environ ${o} · ce mois environ ${m}`,
@@ -261,7 +261,7 @@
     notaStati: 'Los estados «trabajando / parada / bloqueada» se estiman a partir de los archivos de los chats.',
     privacy: 'Contado en este ordenador a partir de los archivos de los chats: solo números. Sin red, sin claves API, sin texto de los mensajes.',
     api: {
-      sez: 'Créditos API', rimasti: (r, tot) => `Quedan ${r} de ${tot}`,
+      sez: 'Créditos API', rimasti: (r, tot) => `Quedan ≈ ${r} de ${tot} (estimación)`, saldoVero: 'Saldo real ↗', saldoNota: 'Calculado con los trabajos registrados, el saldo real está en la Consola',
       scade: (q, g) => `Caduca ${q} (en ${g} ${g === 1 ? 'día' : 'días'})`, scaduto: q => `Caducado ${q}`,
       nessunCredito: 'Ningún crédito API activo.', lavori: (n, s) => `Trabajos hechos con la API: ${n} · gastado ${s}`,
       oggiMese: (o, m) => `Pagado con la API: hoy unos ${o} · este mes unos ${m}`,

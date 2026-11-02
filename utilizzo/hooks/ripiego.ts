@@ -115,3 +115,39 @@ export function modoTetto(i: { apiAttivo: boolean; inUso: boolean; servePiano: b
   if ((i.apiAttivo || i.inUso) && i.creditiOk) return 'costo'
   return 'giri'
 }
+
+// ---- 0.9.7: il saldo dei crediti API è una STIMA (caricati meno la somma di uso.jsonl): il saldo vero è nella Console ----
+export const SALDO_URL = 'https://platform.claude.com/settings/billing'
+// errore di credito dell'aiutante: «credit balance is too low», «out of usage credits», 400/402 di credito o fatturazione.
+// Non confonderlo con il limite del piano («out of extra usage», «weekly limit»): quello è RE_LIMITE.
+export const RE_CREDITO = /credit balance (?:is )?(?:too low|exhausted)|out of (?:usage|api) credits|insufficient[ _](?:credits?|funds|balance|quota)|billing_error|(?:purchase|add) (?:more )?credits|\b(?:400|402)\b[^\n]{0,120}(?:credit|billing|balance)|(?:credit|billing|balance)[^\n]{0,120}\b(?:400|402)\b|crediti (?:api )?(?:finiti|esauriti)/i
+export const eErroreCredito = (testo: string) => RE_CREDITO.test(String(testo ?? ''))
+// «finiti secondo Anthropic»: segnato quando l'aiutante ha avuto un errore di credito, con il totale dei crediti caricati in quel momento.
+// Vale finché un lavoro successivo non riesce (riga «ok» in uso.jsonl più recente del segno: ultimoOk) o finché non si carica altro credito (totale più alto).
+export type SegnoFiniti = { caricati: number; ora: number } | null
+export function leggiSegno(x: unknown): SegnoFiniti {
+  const o = x as any
+  return o && Number.isFinite(Number(o.caricati)) && Number.isFinite(Number(o.ora)) ? { caricati: Number(o.caricati), ora: Number(o.ora) } : null
+}
+export const finitiSecondoAnthropic = (segno: SegnoFiniti, caricatiOra: number, ultimoOk = 0) => !!segno && caricatiOra <= segno.caricati + 0.005 && !(ultimoOk > segno.ora)
+// la stima del saldo: caricati meno registrati, ma 0 se Anthropic ha detto che i crediti sono finiti
+export function stimaSaldo(caricati: number, speso: number, segno: SegnoFiniti, ultimoOk = 0): number {
+  return finitiSecondoAnthropic(segno, caricati, ultimoOk) ? 0 : Math.max(0, caricati - speso)
+}
+// dopo un lavoro dell'aiutante: errore di credito -> segna «finiti»; lavoro riuscito -> toglie il segno; altro errore -> resta com'era
+export function segnoDopoLavoro(prima: SegnoFiniti, ok: boolean, testoErrore: string, caricati: number, ora = Date.now()): SegnoFiniti {
+  if (ok) return null
+  return eErroreCredito(testoErrore) ? { caricati, ora } : prima
+}
+
+// ---- 0.9.7: il testo che il pannello aggiunge a ogni messaggio ----
+// suApi = il lavoro va davvero sui crediti API (ripiego attivo e crediti presenti): solo allora si chiedono costo e spesa massima.
+// Altrimenti (ripiego spento, crediti finiti o assenti, il lavoro resta sul piano) solo livello e giri.
+export function testoLimiti(i: { liv: string; modello: string; g: number; max: number; costoGiro: number; suApi: boolean; alzato?: string }): string {
+  const giri = `${i.g} ${i.g === 1 ? 'giro' : 'giri'}`
+  const et = i.alzato ? ` (${i.alzato})` : ''
+  if (!i.suApi) {
+    return `[Pannello Utilizzo] Richiesta di livello ${i.liv} (modello ${i.modello}). Limiti scelti da Yannis${et}: al massimo ${giri} di loop più la revisione finale. Scrivi all'inizio della risposta, in una riga, la stima: livello e giri. Se il lavoro richiede più giri, fermati al limite e di' cosa manca e quanti giri servirebbero ancora. Se il livello stimato è sbagliato, correggilo e dillo.`
+  }
+  return `[Pannello Utilizzo] Richiesta di livello ${i.liv} (modello ${i.modello}). Limiti scelti da Yannis${et}: al massimo ${giri} di loop più la revisione finale, spesa massima circa ${i.max.toFixed(2)} $ ai prezzi API (circa ${i.costoGiro.toFixed(2)} $ a giro).${i.alzato ? ` Se lanci agente.py usa --budget fino a ${i.max} e --giri ${i.g}; fino a ${i.max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`
+}

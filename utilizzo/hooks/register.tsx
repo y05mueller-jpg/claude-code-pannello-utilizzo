@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { SALDO_URL, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti, type SegnoFiniti, modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreCredito, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -233,14 +233,15 @@ const T_GIRI = {
   nome: (n: number) => `${({ 1: 'Rapido', 2: 'Normale', 3: 'Accurato', 5: 'Preciso', 8: 'Massimo' } as Record<number, string>)[n] ?? ''} · ${n} ${n === 1 ? 'giro' : 'giri'}`,
   livelli: { leggero: 'semplice', medio: 'media', pesante: 'difficile' } as Record<string, string>,
   avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
+  avvisoGiri: (l: string, m: string, g: number) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'}`,
   consigliato: 'consigliato',
   auto: 'Consigliato (automatico)',
   costoEffettivo: 'Costo effettivo',
-  sessione: 'Valore della chat ai prezzi API (non speso)',
-  spesoVero: 'Speso davvero in crediti API',
+  sessione: 'Prezzo API chat generale (teorico)',
+  spesoVero: 'Spese effettive in crediti API',
   inCorso: 'in corso… ',
   nessuna: 'Nessuna richiesta ancora',
-  totale: (n: number, t: string) => `Ultime ${n} richieste: ${t} in tutto (prezzi API)`,
+  totale: (n: number, t: string) => `Ultime ${n} richieste: ${t} in tutto`,
   nota: 'Consigliato (automatico) sceglie i giri migliori per costo e produttività. In bianco: la spesa massima per il livello riconosciuto nell’ultima richiesta (giri + revisione finale, prezzi API).',
 }
 // Livello della richiesta con le stesse regole dell'aiutante API (agente.py) e dell'estensione VS Code.
@@ -268,16 +269,23 @@ const tetto = (g: number, l: Livello) => Math.round((g + 0.5) * COSTO_GIRO[l] * 
 // Dalla soglia del piano (la finestra più piena tra 5 ore, settimana e settimana del modello), se ci sono crediti API non scaduti, la chiave e l'aiutante agente.py,
 // ogni messaggio porta a Claude l'indicazione di far fare il lavoro all'aiutante, che paga con i crediti API.
 // Senza crediti, chiave o aiutante non cambia niente: si continua con il piano.
-function crediti(ap: Api | null): number {
+// 0.9.7: è una STIMA (caricati meno registrati in uso.jsonl): il saldo vero è nella Console. Se l'aiutante ha avuto un errore di credito
+// (segnoFiniti) la stima è 0 $ finché un lavoro successivo non riesce o non si carica altro credito.
+let segnoFiniti: SegnoFiniti = null
+function caricati(ap: Api | null): number {
   const ora = Date.now()
-  const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > ora)
-  return Math.max(0, attivi.reduce((x, c) => x + (Number(c.dollari) || 0), 0) - (ap?.speso ?? 0))
+  return (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > ora).reduce((x, c) => x + (Number(c.dollari) || 0), 0)
 }
+// l'ultimo lavoro riuscito registrato in uso.jsonl (anche se l'ha lanciato Claude a mano): dopo l'errore di credito vuol dire che i crediti ci sono
+const ultimoOk = (ap: Api | null) => Math.max(0, ...((ap as any)?.ultimi ?? []).filter((l: any) => l?.esito === 'ok').map((l: any) => Date.parse(String(l.data)) || 0))
+function crediti(ap: Api | null): number { return stimaSaldo(caricati(ap), ap?.speso ?? 0, segnoFiniti, ultimoOk(ap)) }
+const finitiPerAnthropic = (ap: Api | null) => (ap?.crediti ?? []).length > 0 && finitiSecondoAnthropic(segnoFiniti, caricati(ap), ultimoOk(ap))
 // crediti finiti o scaduti: l'ultima lettura dice davvero 0 (o scaduti), oppure l'aiutante ha avuto un errore di credito; senza crediti inseriti non c'è nulla da dire «finiti»
-function creditiFinitiDi(ap: Api | null, rip: Ripiego | null): { finiti: boolean; erroreCredito: boolean } {
+function creditiFinitiDi(ap: Api | null, rip: Ripiego | null): { finiti: boolean; erroreCredito: boolean; anthropic: boolean } {
+  const anthropic = finitiPerAnthropic(ap)   // 0.9.7: errore di credito segnato e ancora valido (nessuna ricarica, nessun lavoro riuscito dopo)
   const ricaricati = (ap?.crediti ?? []).length > 0 && crediti(ap) > 0.5   // dopo una ricarica un vecchio errore di credito non vale più
   const erroreCredito = !ricaricati && rip?.stato === 'errore' && /credit balance|insufficient|billing|crediti? (?:finiti|esauriti)/i.test(rip.testo ?? '')
-  return { erroreCredito, finiti: !!ap?.presente && (((ap.crediti ?? []).length > 0 && crediti(ap) <= 0.5) || erroreCredito) }
+  return { erroreCredito, anthropic, finiti: !!ap?.presente && (((ap.crediti ?? []).length > 0 && crediti(ap) <= 0.5) || erroreCredito || anthropic) }
 }
 let modelloInUso = ''   // per il limite settimanale del singolo modello
 // il piano è la finestra più piena (5 ore, settimanale, settimanale del modello in uso), non solo le 5 ore
@@ -390,7 +398,17 @@ async function lavoraRipiego($: any, r: { testo: string; titolo: string; budget:
   } catch (x) { err += String((x as Error)?.message ?? x) }
   const costo = /---\s*costo:\s*([\d.,]+)\s*\$/.exec(out)?.[1] ?? ''
   const resoconto = (out.split(/\n---\s*costo:/)[0] ?? '').replace(/^---\s*modello:.*$/m, '').trim()
-  const ok = codice === 0 && !!resoconto
+  // 0.9.7: l'errore di credito arriva spesso come risultato dell'aiutante con «esito: errore» e codice 0: non è un lavoro riuscito
+  const testoEsito = `${resoconto}
+${err}
+${out}`
+  const creditoErr = (codice !== 0 || !resoconto || /esito:\s*errore/i.test(out)) && eErroreCredito(testoEsito)
+  const ok = codice === 0 && !!resoconto && !creditoErr
+  // errore di credito dell'aiutante -> la stima va subito a 0 $ («crediti finiti secondo Anthropic»); un lavoro riuscito toglie il segno
+  try {
+    const nuovo = segnoDopoLavoro(segnoFiniti, ok, testoEsito, caricati(ap))
+    if (JSON.stringify(nuovo) !== JSON.stringify(segnoFiniti)) { segnoFiniti = nuovo; try { await $.store.set('creditiFiniti', nuovo) } catch (x) { /* solo in questa sessione */ } }
+  } catch (x) { /* la stima resta com'era */ }
   await update($, ripiego, () => ({ stato: ok ? 'finito' : 'errore', titolo: r.titolo, budget: r.budget, rimasti, testo: (ok ? resoconto : (fermato ? R.fermato + '\n' : '') + ((resoconto + '\n' + err).trim() || R.fallito)).slice(-6000), costo, aperto: true }))
   $.ui.toast(ok ? R.finito(costo || '?') : fermato ? R.fermato : R.fallito)
   ricorda('Aiutante API', resoconto)
@@ -594,6 +612,7 @@ export const register: Register = on => {
     try { const r0 = await $.store.get('richieste'); if (Array.isArray(r0)) await update($, richieste, () => (r0 as Richiesta[]).slice(0, 15)) } catch (x) { /* nessuna */ }
     try { const v = await $.store.get('ripiegoAuto'); if (typeof v === 'boolean') await update($, ripiegoAuto, () => v) } catch (x) { /* acceso */ }
     try { const v = await $.store.get('boxApi'); if (typeof v === 'boolean') await update($, boxApi, () => v) } catch (x) { /* chiuso */ }
+    try { segnoFiniti = leggiSegno(await $.store.get('creditiFiniti')) } catch (x) { /* nessun errore di credito noto */ }
     try { const v = Number(await $.store.get('ripiegoSoglia')); if (SOGLIE_RIPIEGO.includes(v)) await update($, ripiegoSoglia, () => v) } catch (x) { /* 95% */ }
     try { await limitiNoti($) } catch (x) { /* al primo messaggio */ }
     // 0.9.4: messaggi rimasti in coda prima del riavvio: partono con il prossimo messaggio di Yannis (si unisce a loro)
@@ -635,8 +654,11 @@ export const register: Register = on => {
       if (motivo) return { drop: motivo }
       const contesto: string[] = []
       // il piano oltre la soglia senza ripiego (spento, crediti o aiutante mancanti): lo si dice al modello
-      { const pm = pianoMassimo(await read($, limiti), modelloInUso), sogliaR = await read($, ripiegoSoglia)
-        const pa = passaggioApi(await read($, limiti), await read($, api), sogliaR, await read($, ripiegoAuto))
+      const sogliaR = await read($, ripiegoSoglia)
+      const pa = passaggioApi(await read($, limiti), await read($, api), sogliaR, await read($, ripiegoAuto))
+      // 0.9.7: il lavoro va davvero sui crediti API solo se il ripiego è attivo (piano oltre la soglia, interruttore acceso, crediti, chiave e aiutante presenti)
+      const suApi = pa.attivo
+      { const pm = pianoMassimo(await read($, limiti), modelloInUso)
         if (pm.piano >= sogliaR) contesto.push(`[Pannello Utilizzo] Il piano Claude è al ${Math.round(pm.piano)}% (finestra più piena: ${pm.kind}). ${pa.manca === 'spento' ? 'Ripiego automatico sui crediti API spento da Yannis.' : pa.manca ? `Ripiego sui crediti API non possibile (${pa.manca}): si continua con il piano.` : "Per i lavori usa l'aiutante agente.py (crediti API), non i crediti di utilizzo extra di claude.ai."}`) }
       const liv = livelloDi(testoPersona)
       const alzato = tettoDi(await read($, tettoLavoro))   // tetto scelto accanto a Utilizzo: sostituisce quello calcolato
@@ -647,8 +669,8 @@ export const register: Register = on => {
       await update($, richieste, (v: Richiesta[]) => [{ ora: Date.now(), liv, stima: max, costo: 0, inCorso: true }, ...(v ?? []).filter(x => !x.inCorso)].slice(0, 15))
       // richieste vere (non le domande di una riga): avviso subito della stima e limiti per il loop
       if (testoPersona.trim().length > 40 || alzato) {
-        $.ui.toast(T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)))
-        contesto.push(`[Pannello Utilizzo] Richiesta di livello ${liv} (modello ${MODELLO_LIVELLO[liv]}). Limiti scelti da Yannis${alzato ? ` (${TESTI_TETTO.it.alzato})` : ''}: al massimo ${g} ${g === 1 ? 'giro' : 'giri'} di loop più la revisione finale, spesa massima circa ${max.toFixed(2)} $ ai prezzi API (circa ${COSTO_GIRO[liv].toFixed(2)} $ a giro).${alzato ? ` Se lanci agente.py usa --budget fino a ${max} e --giri ${g}; fino a ${max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`)
+        $.ui.toast(suApi ? T_GIRI.avviso(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g, dollari(COSTO_GIRO[liv]), dollari(max)) : T_GIRI.avvisoGiri(T_GIRI.livelli[liv] ?? liv, MODELLO_LIVELLO[liv], g))
+        contesto.push(testoLimiti({ liv, modello: MODELLO_LIVELLO[liv], g, max, costoGiro: COSTO_GIRO[liv], suApi, alzato: alzato ? TESTI_TETTO.it.alzato : undefined }))
       }
       const e2 = unito ? { ...e, text: unito } : e
       return contesto.length ? next({ ...e2, context: [...(e.context ?? []), ...contesto] }) : next(e2)
@@ -850,7 +872,7 @@ export const register: Register = on => {
             </Box>
           ) : <Box />}
           <Box key="tetto-riga" position="relative" flexDirection="row" gap={1} alignSelf="flex-end">
-            {modo === 'finiti' ? <Box key="tetto-finiti" position="absolute" bottom={1} right={0} width={52} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor="#f59e0b" paddingX={1}><Text color="#f59e0b" wrap="wrap">{W.oltre} {W.finiti}</Text></Box> : null}
+            {modo === 'finiti' ? <Box position="absolute" bottom={1} right={0} width={52} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor="#f59e0b" paddingX={1}><Text color="#f59e0b" wrap="wrap">{W.oltre} {W.finiti}</Text></Box> : null}
             {altro ? (
               // un solo controllo, una riga: il campo prende il posto dell'elenco; Invio o uscire dal campo conferma, Esc lo chiude
               <Box key="tetto-digita-riga" flexDirection="row" gap={1}>
@@ -976,7 +998,7 @@ export const register: Register = on => {
     const adessoMs = Date.now()
     const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > adessoMs)
     const totCredito = attivi.reduce((x, c) => x + c.dollari, 0)
-    const rimasto = Math.max(0, totCredito - (ap?.speso ?? 0))
+    const rimasto = crediti(ap)   // 0.9.7: stima; 0 se Anthropic ha detto che i crediti sono finiti
     const dataBreve = (iso: string) => { const x = new Date(iso + 'T00:00:00'); return `${T.giorniBrevi[x.getDay()]} ${x.getDate()} ${T.mesi[x.getMonth()]}` }
     const righeCrediti: any[] = []
     if (!ap || !(ap.crediti ?? []).length) righeCrediti.push(<Text dimColor>{A.nessunCredito}</Text>)
@@ -993,9 +1015,18 @@ export const register: Register = on => {
     const costoGiorno = (k: string) => { const g = d?.giorni[k]; return g ? costo(prezzo, g.input ?? 0, g.output ?? 0, g.cacheScritta ?? 0, g.cacheLetta ?? 0) : 0 }
     const meseK = oggiK.slice(0, 7)
     const costoMese = Object.keys(d?.giorni ?? {}).filter(k => k.startsWith(meseK)).reduce((x, k) => x + costoGiorno(k), 0)
+    const cfApi = creditiFinitiDi(ap, await read($, ripiego))
     const sezioneApi = sezione(A.sez,
-      totCredito > 0 ? <Text>{A.rimasti(soldi(rimasto), soldi(totCredito))}</Text> : null,
-      totCredito > 0 ? barraSvg(totCredito ? (100 * rimasto) / totCredito : 0, rimasto / Math.max(1, totCredito) < 0.2 ? '#ef4444' : '#22c55e', A.rimasti(soldi(rimasto), soldi(totCredito))) : null,
+      // 0.9.7: il saldo è una stima (caricati meno registrati): «≈ X $ (stima)», la spiegazione al passaggio del mouse, e il collegamento al saldo vero
+      totCredito > 0 ? (
+        <Box key="saldo-riga" position="relative" flexDirection="row" alignItems="center" flexWrap="wrap" gap={1}>
+          <Box position="absolute" bottom={1} left={0} width={46} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} paddingX={1}><Text wrap="wrap">{A.saldoNota}</Text></Box>
+          <Text>{A.rimasti(soldi(rimasto), soldi(totCredito))}</Text>
+          {Link ? <Link key="saldo-vero" href={SALDO_URL} label={A.saldoVero} /> : <Text key="saldo-vero" dimColor>{A.saldoVero}: {SALDO_URL}</Text>}
+        </Box>
+      ) : null,
+      totCredito > 0 ? barraSvg(totCredito ? (100 * rimasto) / totCredito : 0, rimasto / Math.max(1, totCredito) < 0.2 ? '#ef4444' : '#22c55e', `${A.rimasti(soldi(rimasto), soldi(totCredito))} · ${A.saldoNota}`) : null,
+      cfApi.anthropic ? <Text key="saldo-anthropic" size="caption" color="#f59e0b">● {A.anthropicFiniti}</Text> : null,
       // toccando ⓘ la spiegazione compare qui, sopra il box (dove prima c'era la scritta arancione)
       apInfo ? (
         <Box flexDirection="column" borderStyle="round" borderColor={BLU} paddingX={1} gap={1}>
@@ -1016,6 +1047,7 @@ export const register: Register = on => {
           {ap && !ap.chiave ? <Text color="#f59e0b" size="caption">{A.senzaChiave}</Text> : null}
           <Text size="caption">{A.nonClaudeCode}</Text>
           <Text dimColor size="caption">{A.stima}</Text>
+          <Text dimColor size="caption">{A.saldoNota}</Text>
         </Box>
       ) : null,
       // il box «Ricarica e quanto costa» con accanto la piccola icona ⓘ: la spiegazione compare solo toccandola
@@ -1143,7 +1175,7 @@ export const register: Register = on => {
     })() : null
     const titoloBox = `${boxAperto ? '▾' : '▸'} ${BX.titolo}${ap?.presente ? ` · ${BX.rimasti(soldi(rimasto))}` : ''} · ${autoRip ? BX.ripiegoDal(sogliaRip) : BX.ripiegoSpento}`
     const interni = [
-      creditiFiniti ? <Text size="caption" color="#f59e0b">● {X.apiFiniti}</Text> : null,
+      creditiFiniti ? <Box key="box-finiti" flexDirection="row" flexWrap="wrap" gap={1}><Text size="caption" color="#f59e0b">● {cfApi.anthropic ? A.anthropicFiniti : X.apiFiniti}</Text>{Link ? <Link key="box-saldo-vero" href={SALDO_URL} label={A.saldoVero} /> : <Text size="caption" dimColor>{SALDO_URL}</Text>}</Box> : null,
       ripiegoRiga,
       (ap as any)?.presente ? sezioneApi : null,
       sezioneGiri,
