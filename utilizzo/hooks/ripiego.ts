@@ -104,3 +104,14 @@ export function testoDaCoda(miei: InCoda[]): string {
 }
 // «in corso» senza un aiutante vivo in questo pannello = rimasto da un ricaricamento: non deve bloccare i messaggi
 export const statoRimasto = (stato: string | undefined, occupato: boolean) => stato === 'in corso' && !occupato
+
+// ---- 0.9.6: il controllo «Tetto» mostra il costo solo se il lavoro va davvero sui crediti API ----
+// 'giri'  = l'API non è in uso o non è disponibile: solo i giri, niente «≈ X $», niente ⚠
+// 'costo' = il lavoro va sull'API (ripiego attivo, aiutante in corso, lavoro lanciato con agente.py) e i crediti ci sono: giri e costo
+// 'finiti'= l'API servirebbe ma i crediti sono finiti o scaduti (o errore di credito): solo i giri e il ⚠ con la spiegazione
+export type ModoTetto = 'giri' | 'costo' | 'finiti'
+export function modoTetto(i: { apiAttivo: boolean; inUso: boolean; servePiano: boolean; creditiOk: boolean; finiti: boolean }): ModoTetto {
+  if (i.finiti && (i.servePiano || i.inUso)) return 'finiti'
+  if ((i.apiAttivo || i.inUso) && i.creditiOk) return 'costo'
+  return 'giri'
+}

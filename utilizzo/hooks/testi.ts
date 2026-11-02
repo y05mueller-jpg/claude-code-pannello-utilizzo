@@ -413,7 +413,7 @@ export const TESTI_SPESA: Record<Lingua, TestiSpesa> = { it: spesaIt, en: spesaE
 // ---- tetto per il lavoro in corso, accanto al pulsante Utilizzo ----
 export type TestiTetto = {
   etichetta: string; auto: string; altro: string; alzato: string; digita: string; nonValido: (max: number) => string
-  nGiri: (g: number) => string; elenco: (usd: number, giri: number) => string; previsto: (usd: number, tetto: number) => string; oltre: string
+  nGiri: (g: number) => string; elenco: (usd: number, giri: number) => string; previsto: (usd: number, tetto: number) => string; oltre: string; finiti: string
 }
 // numeri con la virgola in italiano, il punto in inglese; «corto» toglie gli zeri inutili (15, 7,5)
 const numIt = (n: number, d: number) => n.toFixed(d).replace('.', ',')
@@ -424,13 +424,13 @@ const tettoIt: TestiTetto = {
   etichetta: 'Tetto', auto: 'auto', altro: 'Altro…', nGiri: g => `${g} ${g === 1 ? 'giro' : 'giri'}`, elenco: (u, g) => `${cortoIt(u)} $ · ${tettoIt.nGiri(g)}`,
   alzato: 'tetto alzato da Yannis per questo lavoro',
   digita: 'es. 7,5', nonValido: m => `non valido: 0,5–${m} $`,
-  previsto: (u, t) => uguali(u, t) ? `≈${cortoIt(u)} $` : `≈${numIt(u, 2)} $`, oltre: '⚠',
+  previsto: (u, t) => uguali(u, t) ? `≈${cortoIt(u)} $` : `≈${numIt(u, 2)} $`, oltre: '⚠', finiti: 'Crediti API finiti o scaduti: il lavoro non può passare all’API, quindi qui non c’è un costo. Ricarica i crediti o continua con il piano.',
 }
 const tettoEn: TestiTetto = {
   etichetta: 'Cap', auto: 'auto', altro: 'Other…', nGiri: g => `${g} ${g === 1 ? 'round' : 'rounds'}`, elenco: (u, g) => `$${cortoEn(u)} · ${tettoEn.nGiri(g)}`,
   alzato: 'cap raised by Yannis for this job',
   digita: 'e.g. 7.5', nonValido: m => `invalid: 0.5–${m} $`,
-  previsto: (u, t) => uguali(u, t) ? `≈$${cortoEn(u)}` : `≈$${u.toFixed(2)}`, oltre: '⚠',
+  previsto: (u, t) => uguali(u, t) ? `≈$${cortoEn(u)}` : `≈$${u.toFixed(2)}`, oltre: '⚠', finiti: 'API credits used up or expired: the job cannot move to the API, so there is no cost shown here. Top up the credits or continue with the plan.',
 }
 export const TESTI_TETTO: Record<Lingua, TestiTetto> = { it: tettoIt, en: tettoEn, de: tettoEn, fr: tettoEn, es: tettoEn }
 

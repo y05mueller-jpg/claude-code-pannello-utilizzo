@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, MAX_CODA, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, MAX_CODA, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 const NL = String.fromCharCode(10)
 const futuro = new Date(Date.now() + 3 * 86400000).toISOString()
@@ -159,4 +159,29 @@ test('0.9.4: «in corso» rimasto da un ricaricamento non blocca; con l’aiutan
   expect(statoRimasto('in corso', true)).toBe(false)
   expect(statoRimasto('finito', false)).toBe(false)
   expect(statoRimasto(undefined, false)).toBe(false)
+})
+
+// ---- 0.9.6: «Tetto» con o senza costo ----
+const base = { apiAttivo: false, inUso: false, servePiano: false, creditiOk: true, finiti: false }
+
+test('Tetto caso 1: API non in uso (piano sotto la soglia) → solo giri, niente costo né ⚠', () => {
+  expect(modoTetto(base)).toBe('giri')
+})
+test('Tetto caso 1b: crediti finiti ma il piano è sotto la soglia e nessun lavoro API → solo giri, niente ⚠', () => {
+  expect(modoTetto({ ...base, creditiOk: false, finiti: true })).toBe('giri')
+})
+test('Tetto caso 1c: aiutante mancante o chiave mancante (crediti non utilizzabili) → solo giri anche se il piano è pieno', () => {
+  expect(modoTetto({ ...base, creditiOk: false, servePiano: true })).toBe('giri')
+})
+test('Tetto caso 2: ripiego attivo con crediti disponibili → giri e costo', () => {
+  expect(modoTetto({ ...base, apiAttivo: true, servePiano: true })).toBe('costo')
+})
+test('Tetto caso 2b: lavoro lanciato con agente.py o ripiego in corso, crediti disponibili → giri e costo', () => {
+  expect(modoTetto({ ...base, inUso: true })).toBe('costo')
+})
+test('Tetto caso 3: l’API serve (piano pieno) ma crediti finiti → solo giri e ⚠', () => {
+  expect(modoTetto({ ...base, servePiano: true, creditiOk: false, finiti: true })).toBe('finiti')
+})
+test('Tetto caso 3b: errore di credito durante il lavoro API → ⚠, mai costo', () => {
+  expect(modoTetto({ ...base, inUso: true, creditiOk: false, finiti: true })).toBe('finiti')
 })

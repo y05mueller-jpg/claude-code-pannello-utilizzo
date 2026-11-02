@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -122,10 +122,12 @@ async function guardiaSpesa($: any, e: any, next: any): Promise<any> {
   try {
     const comando = String((e as any).command ?? '').trim()
     const sp = spesaDi(comando)
-    if (!sp || sp.budget <= SOGLIA_APPROVAZIONE) return next(e)
-    if (sp.budget <= (await read($, tettoLavoro)) + 1e-9) return next(e)   // già scelto da Yannis con «Tetto»
+    if (!sp) return next(e)
+    const via = () => { void update($, agenteLavoro, () => true); return next(e) }   // l'aiutante parte: il lavoro va sui crediti API
+    if (sp.budget <= SOGLIA_APPROVAZIONE) return via()
+    if (sp.budget <= (await read($, tettoLavoro)) + 1e-9) return via()   // già scelto da Yannis con «Tetto»
     const ora = Date.now(), nome = chiaveSpesa(sp.titolo, comando)
-    if ((await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === sp.budget)) return next(e)
+    if ((await read($, spesaApprovate)).some(a => ora - a.ora < APPROVAZIONE_MS && a.titolo === nome && a.budget === sp.budget)) return via()
     const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
     await update($, spesaInAttesa, () => ({ titolo: sp.titolo, budget: sp.budget, comando, ora: Date.now() }))
     // 0.9.4: questo banner sostituisce quello del ripiego: i messaggi della coda che aspettavano lì tornano in coda
@@ -271,6 +273,12 @@ function crediti(ap: Api | null): number {
   const attivi = (ap?.crediti ?? []).filter(c => !c.scadenza || Date.parse(c.scadenza + 'T00:00:00') > ora)
   return Math.max(0, attivi.reduce((x, c) => x + (Number(c.dollari) || 0), 0) - (ap?.speso ?? 0))
 }
+// crediti finiti o scaduti: l'ultima lettura dice davvero 0 (o scaduti), oppure l'aiutante ha avuto un errore di credito; senza crediti inseriti non c'è nulla da dire «finiti»
+function creditiFinitiDi(ap: Api | null, rip: Ripiego | null): { finiti: boolean; erroreCredito: boolean } {
+  const ricaricati = (ap?.crediti ?? []).length > 0 && crediti(ap) > 0.5   // dopo una ricarica un vecchio errore di credito non vale più
+  const erroreCredito = !ricaricati && rip?.stato === 'errore' && /credit balance|insufficient|billing|crediti? (?:finiti|esauriti)/i.test(rip.testo ?? '')
+  return { erroreCredito, finiti: !!ap?.presente && (((ap.crediti ?? []).length > 0 && crediti(ap) <= 0.5) || erroreCredito) }
+}
 let modelloInUso = ''   // per il limite settimanale del singolo modello
 // il piano è la finestra più piena (5 ore, settimanale, settimanale del modello in uso), non solo le 5 ore
 function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): { attivo: boolean; piano: number; rimasto: number; manca: string } {
@@ -284,6 +292,7 @@ function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): 
 // di Yannis non va al modello: la mod lancia da sola l'aiutante agente.py, che paga con i crediti API (la chiave la legge lui).
 const ripiegoAuto = atom({ plugin: 'utilizzo', key: 'ripiegoAuto' } as const, true)
 const ripiegoSoglia = atom({ plugin: 'utilizzo', key: 'ripiegoSoglia' } as const, 95)
+const agenteLavoro = atom({ plugin: 'utilizzo', key: 'agenteLavoro' } as const, false)   // 0.9.6: un lavoro lanciato con agente.py è in corso (il «Tetto» allora mostra il costo)
 const ripiego = atom({ plugin: 'utilizzo', key: 'ripiego' } as const, null as Ripiego | null)
 const inCoda = atom({ plugin: 'utilizzo', key: 'ripiegoCoda' } as const, 0)   // 0.9.4: messaggi di questa chat in coda per l'aiutante
 const SOGLIE_RIPIEGO = [80, 85, 90, 95, 98]
@@ -680,6 +689,7 @@ export const register: Register = on => {
       } else if (motivoFine !== 'error') ricorda('Claude', risposta)
     } catch (x) { /* resta il messaggio di Claude Code */ }
     if (tettoInUso) { tettoInUso = false; await update($, tettoLavoro, () => 0) }   // lavoro finito: torna il predefinito
+    if (await read($, agenteLavoro)) await update($, agenteLavoro, () => false)
     if (usdInizio >= 0) {
       const costo = Math.max(0, (await usdOra($)) - usdInizio)
       usdInizio = -1
@@ -753,8 +763,17 @@ export const register: Register = on => {
     const liv = ((await read($, ultimoLivello)) || 'medio') as Livello
     const apT = await read($, api)
     const rimasti = apT?.presente && (apT.crediti ?? []).length ? crediti(apT) : null   // null = il pannello non li conosce
+    // 0.9.6: il costo compare solo se il lavoro va davvero sui crediti API e i crediti ci sono; altrimenti solo i giri
+    const rip = await read($, ripiego), R = testiRipiego(), nCoda = (await read($, inCoda)) ?? 0
+    const autoT = await read($, ripiegoAuto), sogliaT = await read($, ripiegoSoglia), lavoroAgente = !!(await read($, agenteLavoro))
+    const paT = passaggioApi(await read($, limiti), apT, sogliaT, autoT)
+    const cf = creditiFinitiDi(apT, rip)
+    const modo = modoTetto({
+      apiAttivo: paT.attivo, inUso: (rip?.stato === 'in corso' && !!fermaFiglio) || (lavoroAgente && !!(e.props as any)?.isWorking),   // agenteLavoro vecchio (turno interrotto) non vale se non si sta lavorando
+      servePiano: !!autoT && paT.piano >= sogliaT, creditiOk: !!apT?.presente && !!apT.chiave && !!apT.agente && crediti(apT) > 0.5, finiti: cf.finiti,
+    })
     const previstoDi = (usd: number, g: number) => Math.min(usd, tetto(g, liv))
-    const oltre = (prev: number) => rimasti !== null && prev > rimasti + 1e-9
+    const oltre = (prev: number) => modo === 'costo' && rimasti !== null && prev > rimasti + 1e-9
     const gPred = giriEffettivi(await read($, giri), liv), usdPred = tetto(gPred, liv)
     const chiuso_ = await read($, chiuso)
     const titolo = attesa ? (attesa.titolo || S.senzaTitolo).slice(0, 20) : ''
@@ -768,12 +787,14 @@ export const register: Register = on => {
     }
     // elenco: auto + le scelte (con i giri e il costo previsto) + «Altro…»; un valore digitato fuori elenco compare al suo posto come voce attuale
     const usdVoci = (attuale > 0 && !TETTI_USD.includes(attuale) ? [attuale, ...TETTI_USD] : TETTI_USD.slice()).sort((x, y) => x - y)
-    const voce = (testo: string, prev: number, usd: number) => `${testo} · ${W.previsto(prev, usd)}${oltre(prev) ? ` ${W.oltre}` : ''}`
-    const voci = [
+    const voce = (testo: string, prev: number, usd: number) => modo === 'costo' ? `${testo} · ${W.previsto(prev, usd)}${oltre(prev) ? ` ${W.oltre}` : ''}` : testo
+    const voci0 = [
       { value: '0', label: voce(`${W.auto} · ${W.nGiri(gPred)}`, usdPred, usdPred) },
       ...usdVoci.map(u => ({ value: String(u), label: voce(W.elenco(u, giriPerTetto(u)), previstoDi(u, giriPerTetto(u)), u) })),
       ...(Input ? [{ value: ALTRO, label: W.altro }] : []),
     ]
+    // crediti finiti con l'API che servirebbe: il ⚠ sta sulla voce scelta (quella che si vede nel controllo)
+    const voci = modo === 'finiti' ? voci0.map(v => (v.value === String(attuale) ? { ...v, label: `${v.label} ${W.oltre}` } : v)) : voci0
     const prevDigitato = digitato !== null ? previstoDi(digitato, giriPerTetto(digitato)) : 0
     const coloreOltre = '#f97316'
     const scegli = (v: string) => {
@@ -785,7 +806,6 @@ export const register: Register = on => {
       }
       else imposta(Number(v))
     }
-    const rip = await read($, ripiego), R = testiRipiego(), nCoda = (await read($, inCoda)) ?? 0
     const rigaRipiego = rip ? (
       <Box key="ripiego" flexDirection="column">
         <Box flexDirection="row" gap={1}>
@@ -829,7 +849,8 @@ export const register: Register = on => {
               }} />
             </Box>
           ) : <Box />}
-          <Box key="tetto-riga" flexDirection="row" gap={1} alignSelf="flex-end">
+          <Box key="tetto-riga" position="relative" flexDirection="row" gap={1} alignSelf="flex-end">
+            {modo === 'finiti' ? <Box key="tetto-finiti" position="absolute" bottom={1} right={0} width={52} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor="#f59e0b" paddingX={1}><Text color="#f59e0b" wrap="wrap">{W.oltre} {W.finiti}</Text></Box> : null}
             {altro ? (
               // un solo controllo, una riga: il campo prende il posto dell'elenco; Invio o uscire dal campo conferma, Esc lo chiude
               <Box key="tetto-digita-riga" flexDirection="row" gap={1}>
@@ -837,12 +858,12 @@ export const register: Register = on => {
                   onInput={(v: string) => { void update($, tettoDigitato, () => v); if (errore) void update($, tettoErrore, () => '') }}
                   onSubmit={(v: string) => { const u = leggiTetto(v); if (u === null) void update($, tettoErrore, () => W.nonValido(TETTO_MAX)); else imposta(u) }} />
                 {errore ? <Text key="tetto-errore" color="#ef4444" wrap="truncate-end">{errore}</Text>
-                  : digitato !== null ? <Text key="tetto-digitato-previsto" wrap="truncate-end" color={oltre(prevDigitato) ? coloreOltre : undefined}>{voce(W.elenco(digitato, giriPerTetto(digitato)), prevDigitato, digitato)}</Text> : null}
+                  : digitato !== null ? <Text key="tetto-digitato-previsto" wrap="truncate-end" color={oltre(prevDigitato) ? coloreOltre : undefined}>{voce(W.elenco(digitato, giriPerTetto(digitato)), prevDigitato, digitato)}{modo === 'finiti' ? ` ${W.oltre}` : ''}</Text> : null}
               </Box>
             ) : Select ? (
               <Select key="tetto-elenco" label={W.etichetta} options={voci} value={String(attuale)} onSelect={scegli} />
             ) : (
-              <Button key="tetto-lavoro" label={`${W.etichetta} ${scelto ? voce(W.elenco(scelto.usd, scelto.giri), previstoDi(scelto.usd, scelto.giri), scelto.usd) : voci[0]!.label}`}
+              <Button key="tetto-lavoro" label={`${W.etichetta} ${(voci.find(v => v.value === String(attuale)) ?? voci[0]!).label}`}
                 onPress={() => { const i = voci.findIndex(v => v.value === String(attuale)); scegli(voci[(i + 1) % voci.length]!.value === ALTRO ? '0' : voci[(i + 1) % voci.length]!.value) }} />
             )}
             {chiuso_ && !attesa ? (
@@ -1103,8 +1124,7 @@ export const register: Register = on => {
     const rip0 = await read($, ripiego)
     const pa = passaggioApi(L, ap, sogliaRip, autoRip)
     // l'avviso solo se l'ultima lettura dice davvero crediti a 0 (o scaduti), o se l'aiutante ha avuto un errore di credito: mai perché manca altro
-    const erroreCredito = rip0?.stato === 'errore' && /credit balance|insufficient|billing|crediti? (?:finiti|esauriti)/i.test(rip0.testo ?? '')
-    const creditiFiniti = !!ap?.presente && (((ap.crediti ?? []).length > 0 && rimasto <= 0.5) || erroreCredito)   // senza crediti inseriti non c'è nulla da dire «finiti»
+    const creditiFiniti = creditiFinitiDi(ap, rip0).finiti
     const ripiegoRiga = ap?.presente ? (() => {
       const testo = creditiFiniti && !pa.attivo ? '' : pa.attivo ? X.apiAttivo(Math.round(pa.piano))
         : pa.manca === 'chiave' ? X.apiChiave : pa.manca === 'agente' ? X.apiAgente
