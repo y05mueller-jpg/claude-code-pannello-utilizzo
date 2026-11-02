@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
-import { SALDO_URL, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti, type SegnoFiniti, modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreCredito, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { SALDO_URL, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti, type SegnoFiniti, modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreCredito, eErroreLimite, limiteFino, limitiSalvati, scriviSeCambia, attendiQuiete, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
 // lingua del pannello: impostazione "language" di Claude Code, poi lingua del computer, altrimenti inglese
 let T = TESTI.en
@@ -432,12 +432,12 @@ async function limitiConSalvati($: any): Promise<{ L: Limite[]; salvati: Limite[
 }
 async function limitiNoti($: any): Promise<Limite[]> {
   const sess = (await read($, limiti)) ?? [], { L } = await limitiConSalvati($)
-  if (JSON.stringify(L) !== JSON.stringify(sess)) await update($, limiti, () => L)
+  if (JSON.stringify(L) !== JSON.stringify(sess)) await metti(() => read($, limiti), (x: any) => update($, limiti, () => x), L)
   return L
 }
 async function salvaLimiti($: any, nuove: Limite[]): Promise<Limite[]> {
   const { L: prima, salvati } = await limitiConSalvati($), L = uniscFinestre(nuove, prima)   // la lettura di adesso vince
-  await update($, limiti, () => L)
+  await metti(() => read($, limiti), (x: any) => update($, limiti, () => x), L)
   const daSalvare = limitiSalvati(L)
   if (JSON.stringify(daSalvare) !== JSON.stringify(salvati)) try { await $.store.set('limiti', daSalvare) } catch (x) { /* si riprova alla prossima lettura */ }
   return L
@@ -532,6 +532,15 @@ async function comprimiChat($: any): Promise<string> {
   }
 }
 
+// ---- 0.9.8: scritture solo se il valore cambia, e non mentre si scorre il pannello ----
+let ultimoScorrimento = 0
+const pausa = (ms: number) => new Promise(ok => { (globalThis as any).setTimeout(ok, ms) })
+const quiete = () => attendiQuiete(() => ultimoScorrimento, pausa)
+// (read e update con l'atom scritto per nome: la validazione lo richiede)
+async function metti(leggi: () => Promise<any>, scrivi: (x: any) => Promise<unknown>, v: any): Promise<boolean> {
+  return scriviSeCambia(leggi, scrivi, v)   // senza attese: il ripiego e i messaggi non devono mai aspettare
+}
+
 // ---- raccolta dei numeri ----
 let inCorso = false
 let linguaDa = ''
@@ -562,13 +571,14 @@ async function ricaricaApi($: any) {
 async function aggiornaApi($: any): Promise<boolean> {
   try {
     const ra = await $.process.run(['node', '-e', API_JS], { timeoutMs: 20000 })
-    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Api; await update($, api, () => x); return true }
+    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Api; await metti(() => read($, api), (x: any) => update($, api, () => x), x); return true }
   } catch (e) { /* la sezione API resta com'era */ }
   return false
 }
 async function aggiorna($: any) {
   controllaPannello($)
-  { const tot = await usdOra($); await update($, costoSessione, () => tot) }
+  await quiete()   // 0.9.8: se la persona sta scorrendo il pannello, il giro dei 60 s parte dopo (al massimo 15 s); poi letture fresche
+  { const tot = await usdOra($); await metti(() => read($, costoSessione), (x: any) => update($, costoSessione, () => x), tot) }
   if (usdInizio >= 0) { const c = Math.max(0, (await usdOra($)) - usdInizio); await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo: c } : x))) }
   if (!linguaDa) {
     void update($, menu, () => '')   // una volta per caricamento: nessun menu rimasto aperto da prima
@@ -584,7 +594,7 @@ async function aggiorna($: any) {
       .map((c: any) => ({ nome: String(c.name), tokens: Number(c.tokens), colore: String(c.color || GRIGIO) }))
     const [id, turni, modello] = await Promise.all([$.session.id(), $.session.turns(), $.session.model()])
     modelloInUso = String(modello ?? '')
-    await update($, memoria, () => ({ tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, categorie, id, inizio: u.startedAt, turni, modello }))
+    await metti(() => read($, memoria), (x: any) => update($, memoria, () => x), ({ tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, categorie, id, inizio: u.startedAt, turni, modello }))
   } catch (e) { /* i limiti arrivano con la prossima risposta */ }
   await aggiornaApi($)
   if (inCorso) return
@@ -593,16 +603,16 @@ async function aggiorna($: any) {
     const r = await $.process.run(['node', '-e', CONTA_JS], { timeoutMs: 300000 })
     if (r.exitCode === 0 && r.stdout) {
       const nuovi = JSON.parse(r.stdout) as Dati
-      await update($, dati, () => nuovi)
-      await update($, errore, () => '')
+      await metti(() => read($, dati), (x: any) => update($, dati, () => x), nuovi)
+      await metti(() => read($, errore), (x: any) => update($, errore, () => x), '')
       await update($, scelta, (s: Scelta | null) => s ?? (() => { const o = new Date(nuovi.aggiornato); return { anno: o.getFullYear(), mese: o.getMonth(), giorno: o.getDate() } })())
-    } else await update($, errore, () => (r.stderr || '?').slice(0, 200))
+    } else await metti(() => read($, errore), (x: any) => update($, errore, () => x), (r.stderr || '?').slice(0, 200))
   } catch (e) {
-    await update($, errore, () => String((e as Error)?.message ?? e).slice(0, 200))
+    await metti(() => read($, errore), (x: any) => update($, errore, () => x), String((e as Error)?.message ?? e).slice(0, 200))
   } finally { inCorso = false }
   try {
     const ra = await $.process.run(['node', '-'], { stdin: ALTRI_JS, timeoutMs: 300000 })
-    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Altri; await update($, altri, () => x) }
+    if (ra.exitCode === 0 && ra.stdout) { const x = JSON.parse(ra.stdout) as Altri; await metti(() => read($, altri), (x: any) => update($, altri, () => x), x) }
   } catch (e) { /* gli altri strumenti restano com'erano */ }
 }
 
@@ -715,7 +725,7 @@ export const register: Register = on => {
     if (usdInizio >= 0) {
       const costo = Math.max(0, (await usdOra($)) - usdInizio)
       usdInizio = -1
-      { const tot = await usdOra($); await update($, costoSessione, () => tot) }
+      { const tot = await usdOra($); await metti(() => read($, costoSessione), (x: any) => update($, costoSessione, () => x), tot) }
       await update($, richieste, (v: Richiesta[]) => (v ?? []).map((x, i) => (i === 0 && x.inCorso ? { ...x, costo, inCorso: false } : x)))
       try { await $.store.set('richieste', (await read($, richieste)).filter(x => !x.inCorso)) } catch (x) { /* resta solo in questa chat */ }
     }
@@ -914,6 +924,9 @@ export const register: Register = on => {
     } catch (x) { /* il menu resta com'è */ }
     return next(e)
   })
+
+  // 0.9.8: mentre la persona scorre il pannello, i dati nuovi aspettano (vedi metti)
+  on('ui.scroll', { component: 'Pane', requestId: PANNELLO }, async ($, e, next) => { ultimoScorrimento = Date.now(); return next(e) })
 
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
     const { Box, Text, Button, Select, Svg, Client, Link } = $.ui.resolve(e) as any
@@ -1251,7 +1264,7 @@ export const register: Register = on => {
         </Box>
       ) : null,
     ]
-    if (err) parti.push(<Text color="red">{T.erroreConteggio(err)}</Text>)
+    parti.push(err ? <Text key="errore-conteggio" color="red">{T.erroreConteggio(err)}</Text> : null)   // 0.9.8: posto fisso, anche vuoto
     if (!d) return <Box flexDirection="column" gap={1}>{parti}</Box>
     const scelto = str === 'tutti' && trovati.length ? 'tutti' : str !== 'claude' && alt?.fonti[str] ? str : 'claude'
     const dv: Dati = scelto === 'claude' ? d : scelto === 'tutti' ? unisci([d, ...trovati.map(k => alt!.fonti[k]!.dati)]) : alt!.fonti[scelto]!.dati
@@ -1390,7 +1403,7 @@ export const register: Register = on => {
           <Text dimColor>{T.rigaGiorno(mis(g?.token ?? 0), g?.messaggi ?? 0)}</Text>
         </Box>,
       ), sezione(T.totaleDi(T.mesi[s.mese], s.anno), riquadri(mese, 'mese')))
-    }
+    } else parti.push(null, null)   // 0.9.8: stessi posti anche senza giorno scelto
 
     // per chat
     // le chat del mese scelto raggruppate per giorno: i giorni più recenti in cima, e in ogni giorno le chat più recenti

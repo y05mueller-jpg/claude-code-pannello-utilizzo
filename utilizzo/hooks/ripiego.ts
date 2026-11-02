@@ -151,3 +151,23 @@ export function testoLimiti(i: { liv: string; modello: string; g: number; max: n
   }
   return `[Pannello Utilizzo] Richiesta di livello ${i.liv} (modello ${i.modello}). Limiti scelti da Yannis${et}: al massimo ${giri} di loop più la revisione finale, spesa massima circa ${i.max.toFixed(2)} $ ai prezzi API (circa ${i.costoGiro.toFixed(2)} $ a giro).${i.alzato ? ` Se lanci agente.py usa --budget fino a ${i.max} e --giri ${i.g}; fino a ${i.max} $ la spesa è già approvata da Yannis.` : ''} Scrivi all'inizio della risposta, in una riga, la stima: livello, giri, costo. Se il lavoro richiede più giri o più spesa, fermati al limite e di' cosa manca e quanto costerebbe continuare. Se il livello stimato è sbagliato, correggilo e dillo.`
 }
+
+// ---- 0.9.8: il pannello si ridisegna solo se i dati cambiano davvero ----
+// Ogni scrittura di un atom letto dal pannello lo ridisegna, anche con lo stesso valore: ogni minuto 6-8 scritture identiche
+// facevano saltare lo scorrimento. «aggiornato» (l'ora della lettura) non conta: cambia a ogni lettura anche a dati uguali.
+const senzaOra = (k: string, v: unknown) => (k === 'aggiornato' ? undefined : v)
+export function stessiDati(a: unknown, b: unknown): boolean {
+  try { return JSON.stringify(a ?? null, senzaOra) === JSON.stringify(b ?? null, senzaOra) } catch (x) { return false }
+}
+// scrive solo se il valore è diverso; prima aspetta (attendi) che la persona smetta di scorrere. true = scritto
+export async function scriviSeCambia<T>(leggi: () => Promise<T>, scrivi: (v: T) => Promise<unknown>, nuovo: T, attendi?: () => Promise<void>): Promise<boolean> {
+  if (stessiDati(await leggi(), nuovo)) return false
+  if (attendi) { await attendi(); if (stessiDati(await leggi(), nuovo)) return false }
+  await scrivi(nuovo)
+  return true
+}
+// mentre la persona scorre il pannello (ultimo scorrimento da meno di «quiete» ms) i dati nuovi aspettano, al massimo «massimo» ms
+export async function attendiQuiete(ultimo: () => number, pausa: (ms: number) => Promise<unknown>, quiete = 1500, massimo = 15000, ora: () => number = Date.now): Promise<void> {
+  const inizio = ora()
+  while (ora() - ultimo() < quiete && ora() - inizio < massimo) await pausa(Math.max(100, quiete - (ora() - ultimo())))
+}

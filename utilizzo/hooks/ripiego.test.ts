@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, MAX_CODA, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
+import { modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, MAX_CODA, statoRimasto, testoDaCoda, deveRipiegare, eErroreLimite, limiteFino, limitiSalvati, nonDeviare, pesoDi, pianoMassimo, uniscFinestre, scriviSeCambia, stessiDati, attendiQuiete } from './ripiego'
 
 const NL = String.fromCharCode(10)
 const futuro = new Date(Date.now() + 3 * 86400000).toISOString()
@@ -258,4 +258,63 @@ test('0.9.7: testo ai messaggi, lavoro sui crediti API: livello, giri e costo co
   const alzato = testoLimiti({ liv: 'pesante', modello: 'Opus', g: 12, max: 15, costoGiro: 2.5, suApi: true, alzato: 'tetto scelto' })
   expect(alzato).toContain('--budget fino a 15 e --giri 12')
   expect(testoLimiti({ liv: 'leggero', modello: 'Haiku', g: 1, max: 0.08, costoGiro: 0.05, suApi: true })).toContain('al massimo 1 giro ')
+})
+
+// ---- 0.9.8: ridisegni del pannello ----
+// motore finto: ogni scrittura di un atom letto dal pannello = un ridisegno (come nel motore vero, anche a valore uguale)
+function motoreFinto(iniziali: Record<string, unknown>) {
+  const atom: Record<string, unknown> = { ...iniziali }
+  let ridisegni = 0
+  const metti = (k: string, v: unknown) => scriviSeCambia(async () => atom[k], async x => { atom[k] = x; ridisegni++ }, v)
+  return { atom, metti, ridisegni: () => ridisegni }
+}
+const letture = () => ({   // quello che arriva a ogni lettura (ogni 60 s), con dati invariati: oggetti nuovi, ora di lettura nuova
+  dati: { aggiornato: Date.now() + Math.random(), totali: { token: 5 }, sessioni: [{ id: 'a', token: 5 }], giorni: { '2026-11-02': { token: 5 } } },
+  api: { presente: true, crediti: [{ dollari: 10, scadenza: '2027-01-01' }] },
+  memoria: { tokens: 1200, window: 200000, percent: 0.6, categorie: [], id: 'a', turni: 3 },
+  limiti: [{ kind: 'five_hour', percentUsed: 24, resetsAt: futuro }],
+  costoSessione: 1.25, errore: '',
+  altri: { fonti: { codex: { breve: 'Codex', dati: { aggiornato: Math.random(), giorni: {} } } }, cercati: [] },
+})
+
+test('60 s di pannello fermo, dati invariati: nessun ridisegno (prima: 7 per minuto)', async () => {
+  const m = motoreFinto({ ...letture(), chiuso: false })
+  for (let t = 2000; t <= 60000; t += 2000) {   // controllo del pannello ogni 2 s: scrive solo se cambia
+    const su = true
+    await m.metti('chiuso', !su)   // come controllaPannello: scrive solo se cambia
+    if (t % 60000 === 0) for (const [k, v] of Object.entries(letture())) await m.metti(k, v)   // lettura di ogni minuto
+  }
+  expect(m.ridisegni()).toBe(0)
+})
+
+test('dieci minuti fermi: al massimo un ridisegno, e solo se un dato cambia davvero', async () => {
+  const m = motoreFinto(letture())
+  for (let i = 0; i < 10; i++) for (const [k, v] of Object.entries(letture())) await m.metti(k, v)
+  expect(m.ridisegni()).toBe(0)
+  await m.metti('costoSessione', 1.3)
+  expect(m.ridisegni()).toBe(1)
+  await m.metti('costoSessione', 1.3)
+  expect(m.ridisegni()).toBe(1)
+})
+
+test("stessiDati: l'ora di lettura non conta, il resto sì", () => {
+  expect(stessiDati({ aggiornato: 1, a: [1, 2] }, { aggiornato: 2, a: [1, 2] })).toBe(true)
+  expect(stessiDati({ a: [1, 2] }, { a: [1, 3] })).toBe(false)
+  expect(stessiDati(null, undefined)).toBe(true)
+  expect(stessiDati('', 'x')).toBe(false)
+})
+
+test('mentre si scorre i dati nuovi aspettano: scritti solo dopo 1,5 s di quiete', async () => {
+  let ora = 0, ultimo = 0, scritto = -1
+  const pausa = async (ms: number) => { ora += ms; if (ora < 3000) ultimo = ora - 200 }   // la persona continua a scorrere per 3 s
+  let v = 1
+  await scriviSeCambia(async () => v, async x => { v = x; scritto = ora }, 2, () => attendiQuiete(() => ultimo, pausa, 1500, 15000, () => ora))
+  expect(v).toBe(2)
+  expect(scritto >= 3000 + 1000).toBe(true)
+})
+
+test('scorrimento senza fine: i dati arrivano comunque dopo al massimo 15 s', async () => {
+  let ora = 0
+  await attendiQuiete(() => ora, async (ms: number) => { ora += ms }, 1500, 15000, () => ora)
+  expect(ora >= 15000 && ora < 17000).toBe(true)
 })
