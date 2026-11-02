@@ -1448,8 +1448,10 @@ export const register: Register = on => {
           : null}
       </Box>,
     )
-    parti.push(<Text dimColor>{T.notaStati}</Text>)
-    parti.push(<Text dimColor size="footnote">{T.creatoDa}</Text>)   // firma dell'autore
+    // nota e firma centrate nella barra: il testo non ha allineamento, quindi lo spezzo in righe corte (parole intere) e centro ognuna
+    const righeCentrate = (s: string, max = 42) => { const r: string[] = []; let c = ''; for (const w of s.split(' ')) { if (c && (c + ' ' + w).length > max) { r.push(c); c = w } else c = c ? c + ' ' + w : w } if (c) r.push(c); return r }
+    parti.push(<Box flexDirection="column" alignItems="center" width="100%">{righeCentrate(T.notaStati).map((r, i) => <Text key={`nota-${i}`} dimColor>{r}</Text>)}</Box>)
+    parti.push(<Box flexDirection="column" alignItems="center" width="100%"><Text dimColor size="footnote">{T.creatoDa}</Text></Box>)   // firma dell'autore
 
     return <Box flexDirection="column-reverse" gap={1}>{[...parti].reverse()}</Box>
   })
