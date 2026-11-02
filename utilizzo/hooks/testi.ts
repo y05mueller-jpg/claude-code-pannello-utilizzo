@@ -27,7 +27,7 @@ export type Testi = {
   adesso: string; minFa: (n: number) => string; hFa: (n: number) => string; gFa: (n: number) => string
   memoria: Record<string, string>
   istruzioni: string
-  misure: { a4: Misura; libri: Misura; ore: Misura; token: Misura }
+  misure: { a4: Misura; libri: Misura; ore: Misura; token: Misura; chat: Misura; verso: Misura; strofa: Misura }
   comando: string; titoloPannello: string; pannelloAperto: string
   autoFallita: (m: string) => string; nonRiuscita: (m: string) => string
   messaggiInviati: string; quelliCheScrivi: string; richieste: string; passiClaude: string
@@ -71,6 +71,9 @@ const it: Testi = {
     libri: { nome: '1 libro', spiega: '1 Token = 1 libro di 300 pagine (≈ 200 mila token reali)' },
     ore: { nome: '1 ora di scrittura', spiega: "1 Token = 1 ora di una persona che scrive (≈ 3'200 token reali)" },
     token: { nome: '1 token reale', spiega: 'Token reali: i pezzetti di testo che Claude legge e scrive' },
+    chat: { nome: '1 riga di chat (WhatsApp)', spiega: '1 Token = 1 riga di chat di WhatsApp (≈ 8 token reali)' },
+    verso: { nome: '1 verso di 12 sillabe', spiega: '1 Token = 1 verso di 12 sillabe (≈ 11 token reali)' },
+    strofa: { nome: '1 strofa (4 versi)', spiega: '1 Token = 1 strofa di 4 versi da 12 sillabe (≈ 44 token reali)' },
   },
   comando: 'Apre il pannello Utilizzo (limiti, sessioni, messaggi e token)', titoloPannello: 'Utilizzo', pannelloAperto: 'Pannello Utilizzo aperto.',
   autoFallita: m => `Compressione automatica non riuscita: ${m}`, nonRiuscita: m => `Non riuscita: ${m}`,
@@ -118,6 +121,9 @@ const en: Testi = {
     libri: { nome: '1 book', spiega: '1 Token = 1 book of 300 pages (≈ 200k real tokens)' },
     ore: { nome: '1 hour of writing', spiega: '1 Token = 1 hour of a person writing (≈ 3,200 real tokens)' },
     token: { nome: '1 real token', spiega: 'Real tokens: the small pieces of text Claude reads and writes' },
+    chat: { nome: '1 chat line (WhatsApp)', spiega: '1 Token = 1 line of a WhatsApp chat (≈ 8 real tokens)' },
+    verso: { nome: '1 verse (12 syllables)', spiega: '1 Token = 1 verse of 12 syllables (≈ 11 real tokens)' },
+    strofa: { nome: '1 stanza (4 verses)', spiega: '1 Token = 1 stanza of 4 verses of 12 syllables (≈ 44 real tokens)' },
   },
   comando: 'Opens the Usage panel (limits, sessions, messages and tokens)', titoloPannello: 'Usage', pannelloAperto: 'Usage panel opened.',
   autoFallita: m => `Automatic compaction failed: ${m}`, nonRiuscita: m => `Failed: ${m}`,
@@ -165,6 +171,9 @@ const de: Testi = {
     libri: { nome: '1 Buch', spiega: '1 Token = 1 Buch mit 300 Seiten (≈ 200 Tsd. echte Token)' },
     ore: { nome: '1 Stunde Schreiben', spiega: "1 Token = 1 Stunde, in der ein Mensch schreibt (≈ 3'200 echte Token)" },
     token: { nome: '1 echter Token', spiega: 'Echte Token: die Textstückchen, die Claude liest und schreibt' },
+    chat: { nome: '1 Chatzeile (WhatsApp)', spiega: '1 Token = 1 Zeile eines WhatsApp-Chats (≈ 8 echte Token)' },
+    verso: { nome: '1 Vers (12 Silben)', spiega: '1 Token = 1 Vers mit 12 Silben (≈ 11 echte Token)' },
+    strofa: { nome: '1 Strophe (4 Verse)', spiega: '1 Token = 1 Strophe aus 4 Versen mit 12 Silben (≈ 44 echte Token)' },
   },
   comando: 'Öffnet das Panel Nutzung (Limits, Sitzungen, Nachrichten und Token)', titoloPannello: 'Nutzung', pannelloAperto: 'Panel Nutzung geöffnet.',
   autoFallita: m => `Automatische Komprimierung fehlgeschlagen: ${m}`, nonRiuscita: m => `Fehlgeschlagen: ${m}`,
@@ -212,6 +221,9 @@ const fr: Testi = {
     libri: { nome: '1 livre', spiega: '1 Token = 1 livre de 300 pages (≈ 200 k vrais tokens)' },
     ore: { nome: "1 heure d'écriture", spiega: "1 Token = 1 heure d'une personne qui écrit (≈ 3 200 vrais tokens)" },
     token: { nome: '1 vrai token', spiega: 'Vrais tokens : les petits morceaux de texte que Claude lit et écrit' },
+    chat: { nome: '1 ligne de chat (WhatsApp)', spiega: "1 Token = 1 ligne d'un chat WhatsApp (≈ 8 vrais tokens)" },
+    verso: { nome: '1 vers (12 syllabes)', spiega: '1 Token = 1 vers de 12 syllabes (≈ 11 vrais tokens)' },
+    strofa: { nome: '1 strophe (4 vers)', spiega: '1 Token = 1 strophe de 4 vers de 12 syllabes (≈ 44 vrais tokens)' },
   },
   comando: "Ouvre le panneau Utilisation (limites, sessions, messages et tokens)", titoloPannello: 'Utilisation', pannelloAperto: 'Panneau Utilisation ouvert.',
   autoFallita: m => `Compression automatique échouée : ${m}`, nonRiuscita: m => `Échec : ${m}`,
@@ -259,6 +271,9 @@ const es: Testi = {
     libri: { nome: '1 libro', spiega: '1 Token = 1 libro de 300 páginas (≈ 200 mil tokens reales)' },
     ore: { nome: '1 hora de escritura', spiega: '1 Token = 1 hora de una persona escribiendo (≈ 3.200 tokens reales)' },
     token: { nome: '1 token real', spiega: 'Tokens reales: los trocitos de texto que Claude lee y escribe' },
+    chat: { nome: '1 línea de chat (WhatsApp)', spiega: '1 Token = 1 línea de un chat de WhatsApp (≈ 8 tokens reales)' },
+    verso: { nome: '1 verso (12 sílabas)', spiega: '1 Token = 1 verso de 12 sílabas (≈ 11 tokens reales)' },
+    strofa: { nome: '1 estrofa (4 versos)', spiega: '1 Token = 1 estrofa de 4 versos de 12 sílabas (≈ 44 tokens reales)' },
   },
   comando: 'Abre el panel Uso (límites, sesiones, mensajes y tokens)', titoloPannello: 'Uso', pannelloAperto: 'Panel Uso abierto.',
   autoFallita: m => `La compresión automática falló: ${m}`, nonRiuscita: m => `Falló: ${m}`,

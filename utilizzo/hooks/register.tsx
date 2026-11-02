@@ -5,6 +5,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
+import { MISURE, valoreMisura } from './misure'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
 import { SALDO_URL, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti, type SegnoFiniti, modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreCredito, eErroreLimite, limiteFino, limitiSalvati, scriviSeCambia, attendiQuiete, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
@@ -145,10 +146,6 @@ const OPUS: Prezzo = { entrata: 4, uscita: 20, cache_scritta: 8, cache_letta: 0.
 // costo in dollari di [entrata, uscita, cache scritta, cache riletta]
 const costo = (p: Prezzo, i: number, o: number, cw: number, cr: number) => (i * p.entrata + o * p.uscita + cw * p.cache_scritta + cr * p.cache_letta) / 1e6
 
-// misure per rendere i token comprensibili. Un token è circa 3/4 di parola:
-// una pagina A4 di testo (~500 parole) ≈ 650 token; un libro di 300 pagine ≈ 200'000 token;
-// una persona scrive circa 40 parole al minuto, cioè ~3'200 token l'ora.
-const MISURE: Record<string, number> = { a4: 650, libri: 200000, ore: 3200, token: 1 }
 const nomeMisura = (k: string) => (T.misure as any)[k] ?? T.misure.a4
 
 // ---- numeri leggibili ----
@@ -162,7 +159,7 @@ function breve(n: number): string {
 }
 // un numero di token reali riportato alla misura scelta (1 Token = 1 pagina A4, 1 libro…), es. "17 mila"
 function inMisura(n: number, m: string): string {
-  const v = n / (MISURE[m] ?? MISURE.a4)
+  const v = valoreMisura(n, m)
   return v >= 1e4 ? breve(v) : v >= 10 ? intero(v) : dec(v, 1).replace(T.decimale + '0', '')
 }
 // griglia di scelta (mesi, anni) disegnata come immagine: caselle uguali con angoli smussati come i pulsanti dei giorni
@@ -960,7 +957,7 @@ export const register: Register = on => {
       const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" width="48%" borderStyle="round" borderDimColor paddingX={1}>
+        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" width="48%" borderStyle="bold" paddingX={1}>
           {Client && !senzaClic
             ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore }} />
             : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>]}
@@ -1042,7 +1039,7 @@ export const register: Register = on => {
       cfApi.anthropic ? <Text key="saldo-anthropic" size="caption" color="#f59e0b">● {A.anthropicFiniti}</Text> : null,
       // toccando ⓘ la spiegazione compare qui, sopra il box (dove prima c'era la scritta arancione)
       apInfo ? (
-        <Box flexDirection="column" borderStyle="round" borderColor={BLU} paddingX={1} gap={1}>
+        <Box flexDirection="column" borderStyle="bold" borderColor={BLU} paddingX={1} gap={1}>
           {/* tutto il testo dei crediti sta qui dentro: si vede solo toccando ⓘ */}
           <Box flexDirection="column">
             {righeCrediti}
@@ -1064,7 +1061,7 @@ export const register: Register = on => {
         </Box>
       ) : null,
       // il box «Ricarica e quanto costa» con accanto la piccola icona ⓘ: la spiegazione compare solo toccandola
-      <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+      <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
         <Box flexDirection="row" alignItems="center" gap={1}>
           <Button key="api-ricarica" label={`${apApert ? '▾' : '▸'} ${A.apriRicarica}`} onPress={() => { void update($, apiAperto, (v: boolean) => !v) }} />
           <Button key="api-info" label="ⓘ" variant={apInfo ? 'primary' : undefined} onPress={() => { void update($, apiInfo, (v: boolean) => !v) }} />
@@ -1122,7 +1119,7 @@ export const register: Register = on => {
       : [{ value: '0', label: T_GIRI.nessuna }]
     const totale = rich.filter(x => !x.inCorso).reduce((t, x) => t + x.costo, 0)
     const sezioneGiri = sezione(T_GIRI.titolo,
-      <Box key="giri-riquadro" flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+      <Box key="giri-riquadro" flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
         {Select
           ? <Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} />
           : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
@@ -1141,7 +1138,7 @@ export const register: Register = on => {
     const fScelto = listino?.fornitori[forn] ? forn : fornitori[0]?.[0]
     const cifra = (n: number) => dec(n, n < 1 ? 2 : n < 10 && n % 1 ? 2 : 0)
     const sezionePrezzi = fornitori.length ? (
-      <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={1}>
+      <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={1}>
         <Button key="prezzi-tutti" label={`${przAperti ? '▾' : '▸'} ${X.prezzi(fornitori.length)}`} onPress={() => { void update($, prezziAperti, (v: boolean) => !v) }} />
         {przAperti ? [
           <Box key="prezzi-fornitori" flexDirection="row" flexWrap="wrap" gap={1}>
@@ -1195,7 +1192,7 @@ export const register: Register = on => {
       sezionePrezzi,
     ].filter(Boolean)
     const sezioneBox = (
-      <Box flexDirection="column-reverse" borderStyle="round" borderDimColor paddingX={1} gap={1}>
+      <Box flexDirection="column-reverse" borderStyle="bold" paddingX={1} gap={1}>
         {[
           <Box flexDirection="row" alignItems="center" gap={1}>
             <Button key="box-api" label={titoloBox} onPress={() => { const v = !boxAperto; void update($, boxApi, () => v); try { void Promise.resolve($.store.set('boxApi', v)).catch(() => {}) } catch (x) { /* solo questa chat */ } }} />
@@ -1242,7 +1239,7 @@ export const register: Register = on => {
           : barraSvg(pMem, pMem >= 85 ? '#f59e0b' : BLU, T.memoriaPct(Math.round(pMem)))),
       // il riquadro che spiega cosa c'è nella memoria di questa chat
       mem ? (
-        <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={0}>
+        <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
           <Button key="contenuto" label={`${espanso ? '▾' : '▸'} ${T.cosaContiene}`} onPress={() => { void update($, aperto, (v: boolean) => !v) }} />
           {espanso ? [
           (() => {
@@ -1431,7 +1428,7 @@ export const register: Register = on => {
     }
     // le singole chat in un riquadro che si apre solo quando lo si vuole guardare
     parti.push(
-      <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} gap={1}>
+      <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={1}>
         <Button key="per-chat" label={`${elencoAperto ? '▾' : '▸'} ${T.perChat(s ? T.mesi[s.mese] + ' ' + s.anno : '', delMese.length)}`} onPress={() => { void update($, chatAperte, (v: boolean) => !v) }} />
         {elencoAperto ? chat : null}
         {elencoAperto && giorniMese.length > 7
