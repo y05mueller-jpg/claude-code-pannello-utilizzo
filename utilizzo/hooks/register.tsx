@@ -40,7 +40,7 @@ function pulsanteDelPannello(Client: any, BottoneApp: any, Box: any) {
     if (p.onPress) azioniPulsanti.set(id, p.onPress)
     const fondo = p.variant === 'primary' ? '#2563eb' : '#3a3a3a', sopra = p.variant === 'primary' ? '#3b82f6' : '#4a4a4a'
     // bordo sottile e sfondo qui (nel disegno del pannello il bordo è una linea, nel modulo sarebbe una riga intera)
-    return Box({ key: `pb-${id}`, alignSelf: 'flex-start', flexShrink: 0, borderStyle: 'bold', borderColor: fondo, backgroundColor: fondo, paddingX: 1, paddingTop: 0, paddingBottom: 0.17,   // il corpo delle lettere stava 3 px sotto il centro: un piccolo spazio sotto lo alza
+    return Box({ key: `pb-${id}`, alignSelf: 'flex-start', flexShrink: 0, ...(p.minWidth ? { minWidth: p.minWidth, justifyContent: 'center' } : {}), borderStyle: 'bold', borderColor: fondo, backgroundColor: fondo, paddingX: 1, paddingTop: 0, paddingBottom: 0.17,   // il corpo delle lettere stava 3 px sotto il centro: un piccolo spazio sotto lo alza
       hover: { backgroundColor: sopra, borderColor: sopra },
       children: [Client({ key: `p-${id}`, module: './pulsante.tsx', props: { id, testo: String(p.label ?? ''), spento: !!p.dimColor } })] })
   }
@@ -1402,17 +1402,19 @@ export const register: Register = on => {
       parti.push(sezione(T.perGiorno,
         // giorno, mese e anno al centro, ognuno con il titolo sopra la sua scelta; le frecce dei mesi ai lati
         // frecce dei mesi ai due lati; giorno, mese e anno interi in mezzo (nessuno si restringe, così il testo non si taglia)
-        <Box position="relative" flexDirection="row" justifyContent="center" alignItems="flex-end" width="100%">
-          <Box flexShrink={0}><Button key="mese-prima" label="◀" onPress={() => sposta(-1)} /></Box>
+        // distanze uguali tra tutti i pulsanti (space-between); ogni pulsante largo almeno quanto il suo titolo, testo al centro
+        <Box position="relative" flexDirection="row" justifyContent="space-between" alignItems="flex-end" width="100%">
+          <Box flexShrink={0}><Button key="mese-prima" label="◀" minWidth={5} onPress={() => sposta(-1)} /></Box>
           {([
             [T.giorno, 'giorno', String(s.giorno), Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v: string) => cambia({ giorno: Number(v) })],
             [T.mese, 'mese', String(s.mese), T.mesi.map((m, i) => ({ value: String(i), label: m })), (v: string) => cambia({ mese: Number(v) })],
             [T.anno, 'anno', String(s.anno), anni.map(a => ({ value: String(a), label: String(a) })), (v: string) => cambia({ anno: Number(v) })],
           ] as [string, string, string, { value: string; label: string }[], (v: string) => unknown][]).map(([nome, k, valore, opzioni, scegli]) => (
-            <Box key={k} position="relative" flexDirection="column" alignItems="center" gap={0} flexShrink={0} marginX={1}>
+            <Box key={k} position="relative" flexDirection="column" alignItems="center" gap={0} flexShrink={0}>
               <Text dimColor size="footnote">{nome}</Text>
               {/* un pulsante senza frecce: toccandolo si apre sotto una finestra con le scelte una sotto l'altra */}
-              <Button key={`scegli-${k}`} label={opzioni.find(o => o.value === valore)?.label ?? valore} onPress={() => { void update($, menu, (m: string) => (m === k ? '' : k)) }} />
+              <Button key={`scegli-${k}`} label={opzioni.find(o => o.value === valore)?.label ?? valore}
+                minWidth={k === 'mese' ? Math.max(nome.length, ...opzioni.map(o => o.label.length)) + 3 : String(s.anno).length + 3}   /* giorno largo come l'anno */ onPress={() => { void update($, menu, (m: string) => (m === k ? '' : k)) }} />
               {k === 'anno' && menuAperto === 'anno' && anni.length === 1 ? (
                 // senza larghezza fissa: la finestra prende la misura del suo contenuto, così l'anno si legge intero
                 <Box position="absolute" top={3} right={0} flexDirection="column" alignItems="center" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
@@ -1421,7 +1423,7 @@ export const register: Register = on => {
               ) : null}
             </Box>
           ))}
-          <Box flexShrink={0}><Button key="mese-dopo" label="▶" onPress={() => sposta(1)} /></Box>
+          <Box flexShrink={0}><Button key="mese-dopo" label="▶" minWidth={5} onPress={() => sposta(1)} /></Box>
           {/* mese e anno: finestra larga quanto tutto il riquadro, le voci una sotto l'altra, sopra il grafico */}
           {menuAperto === 'mese' || (menuAperto === 'anno' && anni.length > 1) ? (
             // griglia disegnata (angoli smussati) con sopra uno strato invisibile che riceve il clic (griglia-clic.tsx)
