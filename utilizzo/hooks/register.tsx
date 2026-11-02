@@ -1289,9 +1289,17 @@ export const register: Register = on => {
     parti.push(
       sceltaStrumento,
       sezione(T.sessioni,
-        <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>,
+        // accanto a «bloccate» una piccola ⓘ: la nota sugli altri strumenti compare solo passandoci sopra (key sul Box visibile, mai su quello nascosto)
+        <Box key="sessioni-riga" position="relative" flexDirection="row" gap={1}>
+          <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>
+          {!trovati.length && alt ? <Text dimColor>ⓘ</Text> : null}
+          {!trovati.length && alt ? (
+            <Box position="absolute" top={1} left={0} right={0} display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+              <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text>
+            </Box>
+          ) : null}
+        </Box>,
         <Text dimColor>{T.suTot(t.sessioni)}</Text>,
-        !trovati.length && alt ? <Text dimColor size="caption">{X.nessuno(nonTrovati.join(', '))}</Text> : null,
         ...erroriAltri),
       sezione(T.totale,
         // la misura in cui mostrare i token: un pulsante, e solo quando lo premi compare l'elenco delle scelte.
