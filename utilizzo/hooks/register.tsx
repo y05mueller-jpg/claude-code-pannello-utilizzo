@@ -955,15 +955,16 @@ export const register: Register = on => {
         [T.nuoviEntrata, mis(c.input + c.cacheScritta), T.tokenPrimaVolta],
       ]
       // tutti i riquadri larghi come quello con la scritta più lunga (celle di carattere: testo + spazi + bordo)
-      // nell'app desktop una cella è più larga di una lettera piccola: ~0,7 celle per lettera (misurato su «Scritti da Claude»), poi spazi e bordo
-      const largRiquadro = Math.ceil(Math.max(...voci.map(v => Math.max(v[0].length, v[1].length))) * 0.7) + 4
+      // larghezza uguale per tutti senza contare celle: ogni riquadro contiene, alto 0 e invisibile, il titolo più lungo;
+      // così è largo esattamente come quella scritta, con lo stesso margine a sinistra e a destra
+      const piuLungo = voci.reduce((m, v) => (v[0].length > m.length ? v[0] : m), '')
       const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" width={largRiquadro} flexGrow={0} flexShrink={0} borderStyle="bold" borderColor="#a1a1aa" paddingX={1} paddingY={0}>
+        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" flexGrow={0} flexShrink={0} borderStyle="bold" borderColor="#a1a1aa" paddingX={1} paddingY={0}>
           {Client && !senzaClic
-            ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore }} />
-            : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>]}
+            ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore, piuLungo }} />
+            : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>, <Box height={0} overflow="hidden"><Text size="footnote">{piuLungo}</Text></Box>]}
           <Box position="absolute" top={3} left={0} right={0} display={infoAperta === `${gruppo}-${n}` ? 'flex' : 'none'} borderStyle="bold" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}
             hover={senzaClic ? { display: 'flex' } : undefined}>
             <Text size="caption" color="#e2e8f0">{nota}</Text>
