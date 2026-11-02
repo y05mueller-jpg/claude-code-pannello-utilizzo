@@ -37,6 +37,8 @@ export type Testi = {
   ultime5: string; settimanale: string; spesa: string; siAzzera: (q: string) => string; limitiDopo: string
   aggiornato: (f: string) => string; stoContando: string
   creatoDa: string
+  youppyDescr: string[]
+  youppyGira: string
   sezLimiti: string; sezMemoria: string; autoAl: (n: number) => string
   comprimo: string; siComprimi: string; annulla: string; comprimiOra: string; spiegaComprimi: string
   diToken: (a: string, b: string) => string; composizione: string; memoriaPct: (n: number) => string
@@ -84,6 +86,8 @@ const it: Testi = {
   ultime5: 'Ultime 5 ore', settimanale: 'Settimanale', spesa: 'Spesa', siAzzera: q => `si azzera ${q}`, limitiDopo: 'I limiti compaiono dopo la prossima risposta di Claude.',
   aggiornato: f => `Aggiornato ${f}`, stoContando: 'Sto contando…',
   creatoDa: "Creato da Yannis Müller · Fondatore di YouppyApps",
+  youppyDescr: ["YouppyApps: 56 app gratuite in un posto solo", "ufficio, mappe, meteo, foto, musica, studio, giochi", "File cifrati sul tuo dispositivo, nessun dato a terzi"],
+  youppyGira: "Clicca il logo per il codice QR, di nuovo per tornare",
   sezLimiti: 'Limiti', sezMemoria: 'Memoria di questa chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimo…', siComprimi: 'Sì, comprimi', annulla: 'Annulla', comprimiOra: 'Comprimi ora',
   spiegaComprimi: 'Claude riassume la chat per liberare memoria: i dettagli più vecchi diventano un riassunto.',
@@ -134,6 +138,8 @@ const en: Testi = {
   ultime5: 'Last 5 hours', settimanale: 'Weekly', spesa: 'Spend', siAzzera: q => `resets ${q}`, limitiDopo: "Limits appear after Claude's next reply.",
   aggiornato: f => `Updated ${f}`, stoContando: 'Counting…',
   creatoDa: "Created by Yannis Müller · Founder of YouppyApps",
+  youppyDescr: ["YouppyApps: 56 free apps in one place", "office, maps, weather, photos, music, study, games", "Files encrypted on your device, no data to third parties"],
+  youppyGira: "Click the logo for the QR code, again to go back",
   sezLimiti: 'Limits', sezMemoria: 'Memory of this chat', autoAl: n => `auto at ${n}%`,
   comprimo: 'Compacting…', siComprimi: 'Yes, compact', annulla: 'Cancel', comprimiOra: 'Compact now',
   spiegaComprimi: 'Claude summarizes the chat to free memory: older details become a summary.',
@@ -184,6 +190,8 @@ const de: Testi = {
   ultime5: 'Letzte 5 Stunden', settimanale: 'Wöchentlich', spesa: 'Ausgaben', siAzzera: q => `wird zurückgesetzt ${q}`, limitiDopo: 'Die Limits erscheinen nach der nächsten Antwort von Claude.',
   aggiornato: f => `Aktualisiert ${f}`, stoContando: 'Zähle…',
   creatoDa: "Erstellt von Yannis Müller · Gründer von YouppyApps",
+  youppyDescr: ["YouppyApps: 56 kostenlose Apps an einem Ort", "Büro, Karten, Wetter, Fotos, Musik, Lernen, Spiele", "Dateien auf deinem Gerät verschlüsselt, keine Daten an Dritte"],
+  youppyGira: "Klicke aufs Logo für den QR-Code, erneut zum Zurück",
   sezLimiti: 'Limits', sezMemoria: 'Speicher dieses Chats', autoAl: n => `auto bei ${n}%`,
   comprimo: 'Komprimiere…', siComprimi: 'Ja, komprimieren', annulla: 'Abbrechen', comprimiOra: 'Jetzt komprimieren',
   spiegaComprimi: 'Claude fasst den Chat zusammen, um Speicher freizugeben: ältere Details werden zu einer Zusammenfassung.',
@@ -234,6 +242,8 @@ const fr: Testi = {
   ultime5: 'Dernières 5 heures', settimanale: 'Hebdomadaire', spesa: 'Dépenses', siAzzera: q => `remise à zéro ${q}`, limitiDopo: 'Les limites apparaissent après la prochaine réponse de Claude.',
   aggiornato: f => `Mis à jour ${f}`, stoContando: 'Comptage…',
   creatoDa: "Créé par Yannis Müller · Fondateur de YouppyApps",
+  youppyDescr: ["YouppyApps : 56 apps gratuites au même endroit", "bureau, cartes, météo, photos, musique, études, jeux", "Fichiers chiffrés sur ton appareil, aucune donnée à des tiers"],
+  youppyGira: "Clique le logo pour le code QR, encore pour revenir",
   sezLimiti: 'Limites', sezMemoria: 'Mémoire de ce chat', autoAl: n => `auto à ${n} %`,
   comprimo: 'Compression…', siComprimi: 'Oui, compresser', annulla: 'Annuler', comprimiOra: 'Compresser',
   spiegaComprimi: 'Claude résume le chat pour libérer de la mémoire : les détails plus anciens deviennent un résumé.',
@@ -284,6 +294,8 @@ const es: Testi = {
   ultime5: 'Últimas 5 horas', settimanale: 'Semanal', spesa: 'Gasto', siAzzera: q => `se reinicia ${q}`, limitiDopo: 'Los límites aparecen tras la próxima respuesta de Claude.',
   aggiornato: f => `Actualizado ${f}`, stoContando: 'Contando…',
   creatoDa: "Creado por Yannis Müller · Fundador de YouppyApps",
+  youppyDescr: ["YouppyApps: 56 apps gratis en un solo lugar", "oficina, mapas, tiempo, fotos, música, estudio, juegos", "Archivos cifrados en tu dispositivo, ningún dato a terceros"],
+  youppyGira: "Haz clic en el logo para el código QR, otra vez para volver",
   sezLimiti: 'Límites', sezMemoria: 'Memoria de este chat', autoAl: n => `auto al ${n}%`,
   comprimo: 'Comprimiendo…', siComprimi: 'Sí, comprimir', annulla: 'Cancelar', comprimiOra: 'Comprimir ahora',
   spiegaComprimi: 'Claude resume el chat para liberar memoria: los detalles más antiguos se convierten en un resumen.',

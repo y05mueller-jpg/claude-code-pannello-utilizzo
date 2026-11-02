@@ -6,6 +6,7 @@ import type { Register } from 'claude-code'
 
 import type { Altri, Api, Dati, Limite, Memoria, Prezzo, Ripiego, Scelta, SpesaApprovata, SpesaInAttesa } from '../types'
 import { MISURE, valoreMisura } from './misure'
+import { LOGO_QR_YOUPPY } from './youppy-firma'
 import { TESTI, TESTI_ALTRI, TESTI_API, TESTI_BOX, TESTI_RIPIEGO, TESTI_SPESA, TESTI_TETTO, codiceLingua, linguaNota, type Lingua } from './testi'
 import { SALDO_URL, finitiSecondoAnthropic, leggiSegno, segnoDopoLavoro, stimaSaldo, testoLimiti, type SegnoFiniti, modoTetto, aggiungiACoda, budgetRipiego, daYannisOrigine, dividiCoda, leggiCoda, statoRimasto, testoDaCoda, deveRipiegare, eErroreCredito, eErroreLimite, limiteFino, limitiSalvati, scriviSeCambia, attendiQuiete, nonDeviare, pesoDi, pianoMassimo, uniscFinestre } from './ripiego'
 
@@ -979,7 +980,7 @@ export const register: Register = on => {
     // column-reverse con l'elenco al contrario: stesso ordine a schermo, ma ogni elemento è disegnato dopo quelli sotto,
     // così le finestre che si aprono sotto un pulsante restano sopra al resto
     const sezione = (nome: string, ...righe: any[]) => <Box flexDirection="column-reverse" gap={0}>{[titolo(nome), ...righe].reverse()}</Box>
-    const titolo = (t: string) => <Text weight="semibold" bold>{t}</Text>
+    const titolo = (t: string) => <Text bold>{t}</Text>
 
     // limiti
     const nomeLimite = (k: string) => (k === 'five_hour' ? T.ultime5 : k === 'seven_day' ? T.settimanale : k === 'spend_limit' ? T.spesa : k)
@@ -1292,8 +1293,9 @@ export const register: Register = on => {
         // accanto a «bloccate» una piccola ⓘ: la nota sugli altri strumenti compare solo passandoci sopra (key sul Box visibile, mai su quello nascosto)
         <Box key="sessioni-riga" position="relative" flexDirection="row" gap={1}>
           <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>
-          <Text dimColor>ⓘ</Text>
-          <Box position="absolute" top={1} left={0} right={0} display="none" hover={{ display: 'flex' }} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+          {/* la finestra si apre solo col clic sulla ⓘ (un altro clic la chiude), non passandoci sopra */}
+          {Client ? <Client key="sessioni-info" module="./info-clic.tsx" props={{ id: 'sessioni' }} /> : <Text dimColor>ⓘ</Text>}
+          <Box position="absolute" top={1} left={0} right={0} display={Client && infoAperta === 'sessioni' ? 'flex' : 'none'} hover={Client ? undefined : { display: 'flex' }} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
             <Text size="caption" color="#e2e8f0">{T.notaStati}</Text>
             {!trovati.length && alt ? <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text> : null}
           </Box>
@@ -1448,7 +1450,16 @@ export const register: Register = on => {
       </Box>,
     )
     // firma centrata in fondo (la nota sugli stati sta nella ⓘ accanto a «bloccate»)
-    parti.push(<Box flexDirection="column" alignItems="center" width="100%"><Text dimColor size="footnote">{T.creatoDa}</Text></Box>)   // firma dell'autore
+    parti.push(
+      <Box flexDirection="column" alignItems="center" width="100%" gap={1}>
+        <Text dimColor size="footnote">{T.creatoDa}</Text>
+        {/* logo e QR in un solo disegno: un clic lo gira nel QR di youppyapps.com, un altro lo rigira (tutto in CSS dentro l'SVG) */}
+        {Svg ? <Svg source={LOGO_QR_YOUPPY} alt="YouppyApps: logo e codice QR di youppyapps.com" width={72} height={72} isInteractive /> : null}
+        <Text dimColor size="caption">{T.youppyGira}</Text>
+        <Box flexDirection="column" alignItems="center" gap={0}>{T.youppyDescr.map((riga: string) => <Text size="footnote" color="#e2e8f0">{riga}</Text>)}</Box>   {/* righe corte, centrate e attaccate */}
+        <Text size="footnote"><Link href="https://youppyapps.com" label="youppyapps.com ↗" /></Text>
+      </Box>,
+    )   // firma dell'autore, logo che si gira nel QR, descrizione e link a YouppyApps
 
     return <Box flexDirection="column-reverse" gap={1}>{[...parti].reverse()}</Box>
   })
