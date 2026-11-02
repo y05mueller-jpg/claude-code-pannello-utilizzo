@@ -1355,7 +1355,7 @@ export const register: Register = on => {
       parti.push(sezione(T.perGiorno,
         // giorno, mese e anno al centro, ognuno con il titolo sopra la sua scelta; le frecce dei mesi ai lati
         // frecce dei mesi ai due lati; giorno, mese e anno interi in mezzo (nessuno si restringe, così il testo non si taglia)
-        <Box position="relative" flexDirection="row" justifyContent="space-between" alignItems="flex-end" width="100%">
+        <Box position="relative" flexDirection="row" justifyContent="center" alignItems="flex-end" width="100%">
           <Box flexShrink={0}><Button key="mese-prima" label="◀" onPress={() => sposta(-1)} /></Box>
           {([
             [T.giorno, 'giorno', String(s.giorno), Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v: string) => cambia({ giorno: Number(v) })],
