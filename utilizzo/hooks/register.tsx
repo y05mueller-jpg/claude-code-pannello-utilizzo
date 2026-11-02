@@ -957,7 +957,7 @@ export const register: Register = on => {
       const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" width="48%" borderStyle="bold" paddingX={1}>
+        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" flexGrow={0} flexShrink={0} borderStyle="bold" paddingX={1} paddingY={0}>
           {Client && !senzaClic
             ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore }} />
             : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>]}
@@ -969,7 +969,7 @@ export const register: Register = on => {
       )
       const righe: any[] = []
       for (let i = 0; i < voci.length; i += 2)
-        righe.push(<Box key={`${gruppo}-riga-${i}`} flexDirection="row" justifyContent="space-between">{voci.slice(i, i + 2).map((v, j) => riquadro(v, i + j))}</Box>)
+        righe.push(<Box key={`${gruppo}-riga-${i}`} flexDirection="row" justifyContent="flex-start" alignItems="flex-start" gap={1}>{voci.slice(i, i + 2).map((v, j) => riquadro(v, i + j))}</Box>)
       return <Box flexDirection="column-reverse" gap={1}>{righe.reverse()}</Box>
     }
     // column-reverse con l'elenco al contrario: stesso ordine a schermo, ma ogni elemento è disegnato dopo quelli sotto,
