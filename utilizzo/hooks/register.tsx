@@ -29,6 +29,22 @@ async function rilevaLingua($: any): Promise<Lingua> {
 }
 
 const PANNELLO = 'utilizzo'
+
+// 0.9.19: pulsanti disegnati dal pannello (pulsante.tsx) al posto di quelli dell'app, che mettono il testo 2–3 px
+// sotto il centro. Ogni disegno registra qui le azioni; il clic arriva come messaggio { premi: id }.
+const azioniPulsanti = new Map<string, (e: any) => unknown>()
+function pulsanteDelPannello(Client: any, BottoneApp: any, Box: any) {
+  return (p: any) => {
+    if (!Client || p.plain) return BottoneApp(p)
+    const id = String(p.key ?? p.label ?? '')
+    if (p.onPress) azioniPulsanti.set(id, p.onPress)
+    const fondo = p.variant === 'primary' ? '#2563eb' : '#3a3a3a', sopra = p.variant === 'primary' ? '#3b82f6' : '#4a4a4a'
+    // bordo sottile e sfondo qui (nel disegno del pannello il bordo è una linea, nel modulo sarebbe una riga intera)
+    return Box({ key: `pb-${id}`, alignSelf: 'flex-start', flexShrink: 0, borderStyle: 'bold', borderColor: fondo, backgroundColor: fondo, paddingX: 1, paddingTop: 0, paddingBottom: 0.17,   // il corpo delle lettere stava 3 px sotto il centro: un piccolo spazio sotto lo alza
+      hover: { backgroundColor: sopra, borderColor: sopra },
+      children: [Client({ key: `p-${id}`, module: './pulsante.tsx', props: { id, testo: String(p.label ?? ''), spento: !!p.dimColor } })] })
+  }
+}
 // compressione automatica: alla fine di una risposta, se la memoria della chat supera questa soglia
 const SOGLIA = 40
 let senzaClic = false
@@ -752,6 +768,8 @@ export const register: Register = on => {
 
   // clic su un riquadro del Totale (da titolo-clic.tsx): apre la sua spiegazione, o la chiude se era già aperta
   on('ui.message', async ($, e, next) => {
+    const premuto = (e.data as any)?.premi
+    if (typeof premuto === 'string') { const f = azioniPulsanti.get(premuto); if (f) await f({}); return {} }
     const nuovaMisura = (e.data as any)?.misura
     if (typeof nuovaMisura === 'string') { await update($, misura, () => nuovaMisura); await update($, menu, () => ''); return {} }
     // clic sull'icona delle due frecce accanto a ⓘ: rilegge subito la spesa API
@@ -781,10 +799,12 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if ((e.props as any)?.hasSurvey) return next(e)
     const attesa = await read($, spesaInAttesa)
-    const { Box, Text, Button, Input, Select } = $.ui.resolve(e) as any
+    const { Box, Text, Button: BottoneApp, Input, Select, Client } = $.ui.resolve(e) as any
+    const Button = pulsanteDelPannello(Client, BottoneApp, Box)
     const S = TESTI_SPESA[(linguaDa || 'it') as Lingua] ?? TESTI_SPESA.it
     const W = TESTI_TETTO[(linguaDa || 'it') as Lingua] ?? TESTI_TETTO.it
     const attuale = await read($, tettoLavoro)
+    const menuTetto = (await read($, menu)) === 'tetto'   // elenco del Tetto aperto
     const scelto = tettoDi(attuale)
     const altro = !!(await read($, tettoAltro)) && !!Input   // il campo per scrivere il valore prende il posto dell'elenco, sulla stessa riga
     const errore = await read($, tettoErrore)
@@ -853,7 +873,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rigaRipiego}
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1} justifyContent="space-between">
+        <Box flexDirection="row" flexWrap="wrap" columnGap={1} justifyContent="space-between" alignItems="center">   {/* tutto centrato in altezza nella fascia */}
           {attesa ? (
             <Box key="spesa-banner" flexDirection="row" gap={1}>
               <Text color="#f59e0b">⚠ {S.etichetta}</Text>
@@ -879,7 +899,7 @@ export const register: Register = on => {
               }} />
             </Box>
           ) : <Box />}
-          <Box key="tetto-riga" position="relative" flexDirection="row" gap={1} alignSelf="flex-end">
+          <Box key="tetto-riga" position="relative" flexDirection="row" gap={1} alignSelf="center" alignItems="center">   {/* «Tetto» e la scelta sulla stessa linea, centrati in altezza */}
             {modo === 'finiti' ? <Box position="absolute" bottom={1} right={0} width={52} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor="#f59e0b" paddingX={1}><Text color="#f59e0b" wrap="wrap">{W.oltre} {W.finiti}</Text></Box> : null}
             {altro ? (
               // un solo controllo, una riga: il campo prende il posto dell'elenco; Invio o uscire dal campo conferma, Esc lo chiude
@@ -891,7 +911,20 @@ export const register: Register = on => {
                   : digitato !== null ? <Text key="tetto-digitato-previsto" wrap="truncate-end" color={oltre(prevDigitato) ? coloreOltre : undefined}>{voce(W.elenco(digitato, giriPerTetto(digitato)), prevDigitato, digitato)}{modo === 'finiti' ? ` ${W.oltre}` : ''}</Text> : null}
               </Box>
             ) : Select ? (
-              <Select key="tetto-elenco" label={W.etichetta} options={voci} value={String(attuale)} onSelect={scegli} />
+              // pulsante del pannello al posto della tendina dell'app (testo centrato); le scelte si aprono sopra
+              <Box key="tetto-scelta" flexDirection="column" gap={1} alignItems="flex-end">
+                {menuTetto ? (
+                  <Box key="tetto-scelte" flexDirection="row" flexWrap="wrap" gap={1} justifyContent="flex-end">
+                    {voci.map(v => <Button key={`tetto-op-${v.value}`} label={v.label} variant={v.value === String(attuale) ? 'primary' : undefined}
+                      onPress={() => { void update($, menu, () => ''); scegli(v.value) }} />)}
+                  </Box>
+                ) : null}
+                <Box flexDirection="row" gap={1} alignItems="center">
+                  <Text dimColor>{W.etichetta}</Text>
+                  <Button key="tetto-elenco" label={`${(voci.find(v => v.value === String(attuale)) ?? voci[0]!).label} ${menuTetto ? '▴' : '▾'}`}
+                    onPress={() => { void update($, menu, (x: string) => (x === 'tetto' ? '' : 'tetto')) }} />
+                </Box>
+              </Box>
             ) : (
               <Button key="tetto-lavoro" label={`${W.etichetta} ${(voci.find(v => v.value === String(attuale)) ?? voci[0]!).label}`}
                 onPress={() => { const i = voci.findIndex(v => v.value === String(attuale)); scegli(voci[(i + 1) % voci.length]!.value === ALTRO ? '0' : voci[(i + 1) % voci.length]!.value) }} />
@@ -927,7 +960,8 @@ export const register: Register = on => {
   on('ui.scroll', { component: 'Pane', requestId: PANNELLO }, async ($, e, next) => { ultimoScorrimento = Date.now(); return next(e) })
 
   on('ui.render', { component: 'Pane', requestId: PANNELLO }, async ($, e) => {
-    const { Box, Text, Button, Select, Svg, Client, Link } = $.ui.resolve(e) as any
+    const { Box, Text, Button: BottoneApp, Select, Svg, Client, Link } = $.ui.resolve(e) as any
+    const Button = pulsanteDelPannello(Client, BottoneApp, Box)
     const A = TESTI_API[(linguaDa || 'it') as Lingua] ?? TESTI_API.it
     const ap = await read($, api), apApert = await read($, apiAperto), apInfo = await read($, apiInfo), boxAperto = await read($, boxApi)
     const autoRip = await read($, ripiegoAuto), sogliaRip = await read($, ripiegoSoglia)
@@ -1126,7 +1160,7 @@ export const register: Register = on => {
     const sezioneGiri = sezione(T_GIRI.titolo,
       <Box key="giri-riquadro" flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
         {Select
-          ? <Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} />
+          ? <Box flexDirection="row" alignItems="center"><Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} /></Box>
           : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
         <Box marginTop={1}><Text dimColor size="caption">{T_GIRI.costoEffettivo}</Text></Box>
         {Select
@@ -1144,7 +1178,7 @@ export const register: Register = on => {
     const cifra = (n: number) => dec(n, n < 1 ? 2 : n < 10 && n % 1 ? 2 : 0)
     const sezionePrezzi = fornitori.length ? (
       <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={1}>
-        <Button key="prezzi-tutti" label={`${przAperti ? '▾' : '▸'} ${X.prezzi(fornitori.length)}`} onPress={() => { void update($, prezziAperti, (v: boolean) => !v) }} />
+        <Box flexDirection="row" alignItems="center"><Button key="prezzi-tutti" label={`${przAperti ? '▾' : '▸'} ${X.prezzi(fornitori.length)}`} onPress={() => { void update($, prezziAperti, (v: boolean) => !v) }} /></Box>
         {przAperti ? [
           <Box key="prezzi-fornitori" flexDirection="row" flexWrap="wrap" gap={1}>
             {fornitori.map(([id, f]) => <Button key={`forn-${id}`} label={f.nome} variant={id === fScelto ? 'primary' : undefined} onPress={() => { void update($, fornitore, () => id) }} />)}
@@ -1199,7 +1233,7 @@ export const register: Register = on => {
     const sezioneBox = (
       <Box flexDirection="column-reverse" borderStyle="bold" paddingX={1} gap={1}>
         {[
-          <Box flexDirection="row" alignItems="center" gap={1}>
+          <Box position="relative" flexDirection="row" alignItems="center" gap={1}>
             <Button key="box-api" label={titoloBox} onPress={() => { const v = !boxAperto; void update($, boxApi, () => v); try { void Promise.resolve($.store.set('boxApi', v)).catch(() => {}) } catch (x) { /* solo questa chat */ } }} />
             {creditiFiniti && !boxAperto ? <Text color="#f59e0b">●</Text> : null}
           </Box>,
@@ -1245,7 +1279,7 @@ export const register: Register = on => {
       // il riquadro che spiega cosa c'è nella memoria di questa chat
       mem ? (
         <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
-          <Button key="contenuto" label={`${espanso ? '▾' : '▸'} ${T.cosaContiene}`} onPress={() => { void update($, aperto, (v: boolean) => !v) }} />
+<Box flexDirection="row" alignItems="center"><Button key="contenuto" label={`${espanso ? '▾' : '▸'} ${T.cosaContiene}`} onPress={() => { void update($, aperto, (v: boolean) => !v) }} /></Box>
           {espanso ? [
           (() => {
             const d0 = d?.sessioni.find(x => x.id === mem.id)
@@ -1442,7 +1476,7 @@ export const register: Register = on => {
     // le singole chat in un riquadro che si apre solo quando lo si vuole guardare
     parti.push(
       <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={1}>
-        <Button key="per-chat" label={`${elencoAperto ? '▾' : '▸'} ${T.perChat(s ? T.mesi[s.mese] + ' ' + s.anno : '', delMese.length)}`} onPress={() => { void update($, chatAperte, (v: boolean) => !v) }} />
+        <Box flexDirection="row" alignItems="center"><Button key="per-chat" label={`${elencoAperto ? '▾' : '▸'} ${T.perChat(s ? T.mesi[s.mese] + ' ' + s.anno : '', delMese.length)}`} onPress={() => { void update($, chatAperte, (v: boolean) => !v) }} /></Box>
         {elencoAperto ? chat : null}
         {elencoAperto && giorniMese.length > 7
           ? <Button key="tutte" label={mostraTutte ? T.mostraMeno : T.mostraTutti(giorniMese.length)} onPress={() => { void update($, tutte, (v: boolean) => !v) }} />
