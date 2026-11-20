@@ -21,18 +21,42 @@ function fileConFine(dir, fini, out = []) {
   return out;
 }
 
-// complete lines from byte position `da` to the end of the file
+// complete lines from byte position `da` to the end of the file, read in 4 MB pieces:
+// `righe` is iterated once (only one line is in memory at a time, so huge chats work too);
+// read `nuovoInizio` after the loop. A single line longer than RIGA_MAX is skipped.
+const PEZZO = 4 * 1024 * 1024, RIGA_MAX = 128 * 1024 * 1024;
 function leggiRighe(file, da) {
   const fd = fs.openSync(file, 'r');
-  try {
-    const dim = fs.fstatSync(fd).size, pezzi = [];
-    let pos = da;
-    const buf = Buffer.alloc(4 * 1024 * 1024);
-    while (pos < dim) { const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos); if (!n) break; pezzi.push(Buffer.from(buf.subarray(0, n))); pos += n; }
-    const tutto = Buffer.concat(pezzi), fine = tutto.lastIndexOf(10);   // only complete lines
-    if (fine < 0) return { righe: [], nuovoInizio: da };
-    return { righe: tutto.subarray(0, fine).toString('utf8').split('\n'), nuovoInizio: da + fine + 1 };
-  } finally { fs.closeSync(fd); }
+  let dim;
+  try { dim = fs.fstatSync(fd).size; } catch (e) { fs.closeSync(fd); throw e; }
+  let nuovoInizio = da;
+  function* righe() {
+    try {
+      const buf = Buffer.alloc(Math.min(PEZZO, Math.max(1, dim - da)));
+      let pos = da, pezzi = [], lungo = 0, salta = false;
+      while (pos < dim) {
+        const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos);
+        if (!n) break;
+        const c = buf.subarray(0, n);
+        let a = 0;
+        for (let i = c.indexOf(10); i !== -1; i = c.indexOf(10, a)) {
+          let riga = null;
+          if (!salta) riga = pezzi.length ? Buffer.concat([...pezzi, c.subarray(a, i)]).toString('utf8') : c.toString('utf8', a, i);
+          pezzi = []; lungo = 0; salta = false; a = i + 1;
+          nuovoInizio = pos + a;
+          if (riga !== null) yield riga;
+        }
+        if (a < n && !salta) {   // start of a line that continues in the next piece
+          lungo += n - a;
+          if (lungo > RIGA_MAX) { pezzi = []; lungo = 0; salta = true; }
+          else pezzi.push(Buffer.from(c.subarray(a)));
+        }
+        pos += n;
+      }
+    } catch (e) { /* read error: stop at the last complete line and go on from there next time */ }
+    finally { fs.closeSync(fd); }
+  }
+  return { righe: righe(), get nuovoInizio() { return nuovoInizio; } };
 }
 
 const nuovoGiorno = () => [0, 0, 0, 0, 0, 0, 0, 0];

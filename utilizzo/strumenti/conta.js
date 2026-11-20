@@ -33,15 +33,42 @@ function testoUtente(m) {
   return t ? t.text : null;
 }
 
+// righe complete dalla posizione `da` alla fine del file, lette a pezzi di 4 MB: in memoria c'è una riga alla volta,
+// così funzionano anche le chat enormi. `righe` si scorre una volta sola; `nuovoInizio` si legge dopo il ciclo.
+// Una riga sola più lunga di RIGA_MAX si salta.
+const PEZZO = 4 * 1024 * 1024, RIGA_MAX = 128 * 1024 * 1024;
 function leggiRighe(file, da) {
-  const fd = fs.openSync(file, 'r'), dim = fs.fstatSync(fd).size, pezzi = [];
-  let pos = da;
-  const buf = Buffer.alloc(4 * 1024 * 1024);
-  while (pos < dim) { const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos); if (!n) break; pezzi.push(Buffer.from(buf.subarray(0, n))); pos += n; }
-  fs.closeSync(fd);
-  const tutto = Buffer.concat(pezzi), fine = tutto.lastIndexOf(10);   // solo righe complete
-  if (fine < 0) return { righe: [], nuovoInizio: da };
-  return { righe: tutto.subarray(0, fine).toString('utf8').split('\n'), nuovoInizio: da + fine + 1 };
+  const fd = fs.openSync(file, 'r');
+  let dim;
+  try { dim = fs.fstatSync(fd).size; } catch (e) { fs.closeSync(fd); throw e; }
+  let nuovoInizio = da;
+  function* righe() {
+    try {
+      const buf = Buffer.alloc(Math.min(PEZZO, Math.max(1, dim - da)));
+      let pos = da, pezzi = [], lungo = 0, salta = false;
+      while (pos < dim) {
+        const n = fs.readSync(fd, buf, 0, Math.min(buf.length, dim - pos), pos);
+        if (!n) break;
+        const c = buf.subarray(0, n);
+        let a = 0;
+        for (let i = c.indexOf(10); i !== -1; i = c.indexOf(10, a)) {
+          let riga = null;
+          if (!salta) riga = pezzi.length ? Buffer.concat([...pezzi, c.subarray(a, i)]).toString('utf8') : c.toString('utf8', a, i);
+          pezzi = []; lungo = 0; salta = false; a = i + 1;
+          nuovoInizio = pos + a;
+          if (riga !== null) yield riga;
+        }
+        if (a < n && !salta) {   // inizio di una riga che continua nel pezzo dopo
+          lungo += n - a;
+          if (lungo > RIGA_MAX) { pezzi = []; lungo = 0; salta = true; }
+          else pezzi.push(Buffer.from(c.subarray(a)));
+        }
+        pos += n;
+      }
+    } catch (e) { /* errore di lettura: ci si ferma all'ultima riga intera e si riprende la volta dopo */ }
+    finally { fs.closeSync(fd); }
+  }
+  return { righe: righe(), get nuovoInizio() { return nuovoInizio; } };
 }
 
 const ora = Date.now(), visti = new Set();
@@ -54,8 +81,8 @@ for (const file of fileJsonl(RADICE)) {
   if (st.size === f.inizio) continue;
   const secondario = file.includes(`${path.sep}subagents${path.sep}`);
   const giaContate = new Set(f.richieste);
-  const { righe, nuovoInizio } = leggiRighe(file, f.inizio);
-  for (const r of righe) {
+  let letto; try { letto = leggiRighe(file, f.inizio); } catch (e) { continue; }
+  for (const r of letto.righe) {
     if (!r) continue;
     let j; try { j = JSON.parse(r); } catch (e) { continue; }
     if (!j.sessionId) continue;
@@ -91,7 +118,7 @@ for (const file of fileJsonl(RADICE)) {
       if (!isNaN(ts)) { const g = s.giorni[giorno(ts)] || (s.giorni[giorno(ts)] = [0, 0, 0, 0, 0, 0, 0, 0]); g[1]++; g[7] = (g[7] || 0) + stima; }
     }
   }
-  f.inizio = nuovoInizio;
+  f.inizio = letto.nuovoInizio;   // si conosce solo dopo aver letto le righe
 }
 for (const k of Object.keys(cache.file)) if (!visti.has(k)) delete cache.file[k];
 try { fs.writeFileSync(CACHE, JSON.stringify(cache)); } catch (e) {}

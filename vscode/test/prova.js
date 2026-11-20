@@ -99,4 +99,19 @@ const testo = JSON.stringify([r.sessioni, rc.sessioni]);
 for (const parola of ['ciao ciao', 'abcdefgh', 'scrivi una cosa', 'environment_context', 'istruzioni']) ok(testo.includes(parola), false, `no text: ${parola}`);
 
 fs.rmSync(tmp, { recursive: true, force: true });
+// ---------- leggiRighe: lines crossing the 4 MB pieces, multi-byte letters split, incomplete last line ----------
+{
+  const { leggiRighe } = require('../src/comune');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pannello-righe-')), f = path.join(dir, 'lunghe.jsonl'), MB = 1024 * 1024;
+  const attese = ['a'.repeat(4 * MB - 1), 'è'.repeat(3 * MB), '', 'x', 'é' + 'b'.repeat(9 * MB) + 'ü'];
+  fs.writeFileSync(f, attese.join('\n') + '\nmezza');
+  const l = leggiRighe(f, 0), lette = [...l.righe];
+  ok(lette.length === attese.length && lette.every((r, i) => r === attese[i]), true, 'long lines read whole');
+  ok(l.nuovoInizio, fs.statSync(f).size - 'mezza'.length, 'stops before the incomplete line');
+  fs.appendFileSync(f, ' riga\n');
+  const l2 = leggiRighe(f, l.nuovoInizio);
+  ok([[...l2.righe], l2.nuovoInizio], [['mezza riga'], fs.statSync(f).size], 'goes on from the last point');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 console.log(`OK: ${prove} checks passed${zstd ? ' (including a .jsonl.zst file)' : ' (zstd not available in this Node: .zst test done on a plain file)'}`);

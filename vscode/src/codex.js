@@ -48,10 +48,10 @@ function leggiCodex(radice, cacheIn) {
       if (st.size === f.inizio) { f.mtime = st.mtimeMs; continue; }
     }
     f.mtime = st.mtimeMs; f.dim = st.size;
-    let righe;
+    let righe, letto = null;
     try {
       if (compresso) { righe = zlib.zstdDecompressSync(fs.readFileSync(file)).toString('utf8').split('\n'); f.inizio = st.size; }
-      else { const l = leggiRighe(file, f.inizio); righe = l.righe; f.inizio = l.nuovoInizio; }
+      else { letto = leggiRighe(file, f.inizio); righe = letto.righe; }
     } catch (e) { continue; }
     if (!f.id) { const m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(path.basename(file)); f.id = m ? m[1] : path.basename(file); }
     for (const r of righe) {
@@ -88,6 +88,7 @@ function leggiCodex(radice, cacheIn) {
         aggiungiMessaggio(f.msg, g, Math.ceil(t.length / 4));   // only the length is used, the text is not kept
       }
     }
+    if (letto) f.inizio = letto.nuovoInizio;   // known only after the lines have been read
   }
   if (saltati) avvisi.push({ chiave: 'codexZst', n: saltati });
 
