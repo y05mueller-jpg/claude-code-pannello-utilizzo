@@ -2,7 +2,7 @@
   "name": "pannello-utilizzo",
   "displayName": "Usage Panel – Claude, Codex, Gemini, Qwen, Kimi, GLM and more",
   "description": "Side panel with messages, tokens, a daily chart and usage per chat for Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue and Aider. Counted locally from their files: no network, no API key.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "y05mueller-jpg",
   "author": {
     "name": "y05mueller-jpg",

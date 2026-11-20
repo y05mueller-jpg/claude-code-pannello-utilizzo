@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — 2026-11-20
+- Chat files are read in 4 MB pieces, one line at a time: chats of any size are counted (before, a chat file over 512 MB broke the count).
+- Contact address: info@youppyapps.com.
+
 ## 1.2.0 — 2026-10-26
 - New **Model choice** section (model routing): for every tool found, the light / medium / heavy model of its provider (cheapest, middle, flagship from the shipped price list; Anthropic Haiku / Sonnet / Opus 5.5) with input/output prices, what each level is for, and an estimate of the savings this month compared with always using the flagship (assuming 40% light, 40% medium, 20% heavy).
 - **Try it** box: describe a job and see at once the level, the model and the reason. Computed in the panel, nothing saved or sent.
