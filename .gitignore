@@ -1,0 +1,14 @@
+# File locali che non vanno mai pubblicati / local files that must never be published
+chiave.txt
+*.key
+*.pem
+.env
+.env.*
+config.json
+config-api.json
+uso.jsonl
+*.jsonl
+*.log
+node_modules/
+*.vsix
+.credentials.json

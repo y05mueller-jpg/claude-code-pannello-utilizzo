@@ -267,7 +267,7 @@ function livelloDi(t: string): Livello {
   if (RE_LEGGERO.test(t) && t.length < 600) return 'leggero'
   return 'medio'
 }
-// costo stimato di UN giro ai prezzi API (lavoro + controllo); misurato: un giro 3D di Sinnay con Opus ≈ 2,5 $
+// costo stimato di UN giro ai prezzi API (lavoro + controllo); misurato: un giro di progettazione 3D con Opus ≈ 2,5 $
 const COSTO_GIRO: Record<Livello, number> = { leggero: 0.05, medio: 0.4, pesante: 2.5 }
 const MODELLO_LIVELLO: Record<Livello, string> = { leggero: 'Haiku', medio: 'Sonnet', pesante: 'Opus' }
 // le 5 scelte: giri massimi per richiesta

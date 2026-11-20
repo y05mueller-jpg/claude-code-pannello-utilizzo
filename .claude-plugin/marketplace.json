@@ -1,6 +1,6 @@
 {
   "name": "pannello-utilizzo",
-  "owner": { "name": "y05mueller-jpg", "email": "y05.mueller@gmail.com" },
+  "owner": { "name": "y05mueller-jpg", "email": "info@youppyapps.com" },
   "plugins": [
     { "name": "utilizzo", "source": "./utilizzo", "description": "Usage panel beside the chat: limits, context memory, sessions, messages, tokens and a daily chart (Claude Code desktop)" }
   ]

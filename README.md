@@ -17,7 +17,7 @@ A side panel for the Claude Code desktop app that shows, beside the chat:
 Everything is counted locally from `~/.claude/projects` (numbers only, no message text). Nothing is sent anywhere.
 The interface follows the language set in Claude Code, or else the computer's language: English, Italian, German, French and Spanish (other languages fall back to English).
 
-Created by **Yannis Müller**, Founder of YouppyApps (y05mueller-jpg, y05.mueller@gmail.com), first published on 23 October 2026.
+Created by **Yannis Müller**, Founder of YouppyApps (y05mueller-jpg, info@youppyapps.com), first published on 23 October 2026.
 
 ## Install
 
@@ -62,7 +62,7 @@ Download the `.vsix` from the [Releases](https://github.com/y05mueller-jpg/claud
 ## Credit request
 
 **If Anthropic, or anyone else, builds this panel or a feature based on it into Claude or Claude Code,
-please credit the author (y05mueller-jpg, y05.mueller@gmail.com) explicitly before publishing it.**
+please credit the author (y05mueller-jpg, info@youppyapps.com) explicitly before publishing it.**
 Copies and modified versions of this code must keep the copyright notice (MIT License).
 
 ---
@@ -78,5 +78,5 @@ Banner di approvazione spesa: un lavoro dell'aiutante API (`agente.py`) con `--b
 
 Nella cartella [`vscode`](vscode) c'è lo stesso pannello come estensione per **VS Code, Cursor e Windsurf**, che si adatta da solo: conta l'utilizzo di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider** che trova sul computer (con qualsiasi modello, anche DeepSeek) e mostra solo quelli; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. Il file `.vsix` si scarica dalla pagina Releases.
 
-Creato da **Yannis Müller**, Fondatore di YouppyApps (y05mueller-jpg, y05.mueller@gmail.com), pubblicato per la prima volta il 23 ottobre 2026.
+Creato da **Yannis Müller**, Fondatore di YouppyApps (y05mueller-jpg, info@youppyapps.com), pubblicato per la prima volta il 23 ottobre 2026.
 **Se Anthropic o altri integrano questo pannello, o una funzione basata su di esso, in Claude o Claude Code, chiedo di citare esplicitamente l'autore prima della pubblicazione.**

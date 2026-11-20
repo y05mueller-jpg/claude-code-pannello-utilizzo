@@ -118,12 +118,12 @@ The panel recommends the model; in the tools that allow it (Claude Code with sub
 
 The same panel also exists as a mod inside the Claude Code desktop app, in the [`utilizzo`](../utilizzo) folder of this repository.
 
-Created by **Yannis Müller**, Founder of YouppyApps (y05mueller-jpg, y05.mueller@gmail.com), first published on 26 October 2026.
+Created by **Yannis Müller**, Founder of YouppyApps (y05mueller-jpg, info@youppyapps.com), first published on 26 October 2026.
 
 ## Credit request
 
 **If Anthropic, OpenAI, or anyone else, builds this panel or a feature based on it into their products,
-please credit the author (y05mueller-jpg, y05.mueller@gmail.com) explicitly before publishing it.**
+please credit the author (y05mueller-jpg, info@youppyapps.com) explicitly before publishing it.**
 Copies and modified versions of this code must keep the copyright notice (MIT License).
 
 ---
@@ -133,5 +133,5 @@ Copies and modified versions of this code must keep the copyright notice (MIT Li
 Pannello laterale per VS Code, Cursor e Windsurf con messaggi, token, grafico giornaliero e utilizzo per chat di **Claude Code, OpenAI Codex, Gemini CLI, Qwen Code, Kimi CLI, ZCode (GLM), MiniMax Code, opencode, Kilo Code, Cline, Roo Code, Continue e Aider**, con qualsiasi modello (anche DeepSeek, Qwen, Kimi, GLM, MiniMax). Si adatta da solo: mostra solo gli strumenti che trova sul computer; se ce n'è più di uno, in alto si sceglie quale vedere o tutti insieme. La sezione «Scelta del modello» consiglia per ogni strumento il modello leggero, medio o di punta del suo fornitore, con i prezzi, una stima del risparmio del mese (supponendo 40% lavori leggeri, 40% medi e 20% pesanti) e una casella «Prova: descrivi il lavoro» che dice subito livello, modello e motivo, tutto in locale. Il box «Ricarica e quanto costa» ha i prezzi ufficiali di tutti i fornitori, letti il 26 ottobre 2026, con i dettagli dietro l'icona ⓘ.
 Tutto viene contato sul tuo computer dai file che gli strumenti scrivono già: solo numeri, niente testo dei messaggi, niente rete, nessuna chiave API. Solo il lettore di Claude Code è stato provato su file veri; gli altri sono scritti dal codice sorgente ufficiale e provati con file inventati. Lingue: italiano, inglese, tedesco, francese, spagnolo.
 
-Creato da **Yannis Müller**, Fondatore di YouppyApps (y05mueller-jpg, y05.mueller@gmail.com), pubblicato per la prima volta il 26 ottobre 2026.
+Creato da **Yannis Müller**, Fondatore di YouppyApps (y05mueller-jpg, info@youppyapps.com), pubblicato per la prima volta il 26 ottobre 2026.
 **Se Anthropic, OpenAI o altri integrano questo pannello, o una funzione basata su di esso, nei loro prodotti, chiedo di citare esplicitamente l'autore prima della pubblicazione.**
