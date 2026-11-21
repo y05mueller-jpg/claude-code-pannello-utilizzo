@@ -1240,11 +1240,11 @@ export const register: Register = on => {
           {Link ? <Link key="tetto-alza" href={TETTO_CONSOLE_URL} label={TC.alza} /> : <Text key="tetto-alza" dimColor>{TC.alza}: {TETTO_CONSOLE_URL}</Text>}
           {Select ? <Select key="tetto-menu" label={TC.menu} options={opzioniTetto.map(n => ({ value: String(n), label: n > 0 ? `${n} $` : TC.nonImp }))} value={String(tettoC)}
             onSelect={async (v: string) => { const n = Number(v); await update($, tettoConsole, () => n); try { await $.store.set('tettoConsole', n) } catch (x) { /* solo questa chat */ } }} /> : null}
+          <Text key="tetto-nota" size="caption" dimColor>{TC.nota}</Text>
         </Box>
         {stTetto.stato === 'nonImpostato'
           ? <Text size="caption" dimColor>{TC.invito}</Text>
           : <Text size="caption" color={stTetto.stato === 'raggiunto' ? '#ef4444' : stTetto.stato === 'vicino' ? '#f59e0b' : undefined}>{TC.riga(soldi(tettoC), soldi(usatiMese))}{stTetto.stato === 'raggiunto' ? ` · ${TC.raggiunto}` : ''}</Text>}
-        <Text size="caption" dimColor>{TC.nota}</Text>
       </Box>
     ) : null
     const titoloBox = `${boxAperto ? '▾' : '▸'} ${BX.titolo}${ap?.presente ? ` · ${BX.rimasti(soldi(rimasto))}` : ''} · ${autoRip ? BX.ripiegoDal(sogliaRip) : BX.ripiegoSpento}`

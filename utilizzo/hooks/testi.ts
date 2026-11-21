@@ -427,7 +427,7 @@ const tcIt: TestiTettoConsole = {
   invito: 'Scegli qui sopra il tetto mensile che hai messo nella Console.',
   riga: (t, u) => `Tetto mensile della Console: ${t} · usati questo mese ≈ ${u}`,
   raggiunto: 'tetto raggiunto: le richieste API si fermano finché non lo alzi nella Console',
-  nota: 'Questo menu non cambia il tetto vero: dice solo al pannello quanto vale. Il tetto si cambia nella Console. «Usati» conta solo i lavori registrati su questo computer.',
+  nota: 'si imposta manualmente',
 }
 const tcEn: TestiTettoConsole = {
   stimaNota: v => `The estimate is only valid if every job done with the API is recorded. Unrecorded jobs (other keys, other computers, servers) are invisible: for the true value open ${v}.`, stimaVuota: v => `No job recorded: the estimate is not indicative. For the true value open ${v}.`,
@@ -435,7 +435,7 @@ const tcEn: TestiTettoConsole = {
   invito: 'Pick above the monthly limit you set in the Console.',
   riga: (t, u) => `Console monthly limit: ${t} · used this month ≈ ${u}`,
   raggiunto: 'limit reached: API requests stop until you raise it in the Console',
-  nota: 'This menu does not change the real limit: it only tells the panel what it is. Change the limit in the Console. “Used” counts only jobs recorded on this computer.',
+  nota: 'set by hand',
 }
 const tcDe: TestiTettoConsole = {
   stimaNota: v => `Die Schätzung gilt nur, wenn jeder Auftrag mit der API aufgezeichnet wird. Nicht aufgezeichnete Aufträge (andere Schlüssel, andere Computer, Server) sieht man nicht: den wahren Wert findest du unter ${v}.`, stimaVuota: v => `Kein Auftrag aufgezeichnet: die Schätzung ist nicht aussagekräftig. Den wahren Wert findest du unter ${v}.`,
@@ -443,7 +443,7 @@ const tcDe: TestiTettoConsole = {
   invito: 'Wähle oben das Monatslimit, das du in der Console gesetzt hast.',
   riga: (t, u) => `Monatslimit der Console: ${t} · diesen Monat verbraucht ≈ ${u}`,
   raggiunto: 'Limit erreicht: API-Anfragen stoppen, bis du es in der Console erhöhst',
-  nota: 'Dieses Menü ändert das echte Limit nicht: es sagt dem Panel nur, wie hoch es ist. Das Limit änderst du in der Console. „Verbraucht“ zählt nur Aufträge, die auf diesem Computer protokolliert wurden.',
+  nota: 'von Hand eingestellt',
 }
 const tcFr: TestiTettoConsole = {
   stimaNota: v => `L’estimation n’est valable que si chaque travail fait avec l’API est enregistré. Les travaux non enregistrés (autres clés, autres ordinateurs, serveurs) restent invisibles : pour la vraie valeur, ouvre ${v}.`, stimaVuota: v => `Aucun travail enregistré : l’estimation n’est pas indicative. Pour la vraie valeur, ouvre ${v}.`,
@@ -451,7 +451,7 @@ const tcFr: TestiTettoConsole = {
   invito: 'Choisis ci-dessus le plafond mensuel fixé dans la Console.',
   riga: (t, u) => `Plafond mensuel de la Console : ${t} · utilisé ce mois-ci ≈ ${u}`,
   raggiunto: 'plafond atteint : les requêtes API s’arrêtent tant que tu ne le relèves pas dans la Console',
-  nota: 'Ce menu ne change pas le vrai plafond : il indique seulement au panneau sa valeur. Le plafond se change dans la Console. « Utilisé » ne compte que les travaux enregistrés sur cet ordinateur.',
+  nota: 'se règle à la main',
 }
 const tcEs: TestiTettoConsole = {
   stimaNota: v => `La estimación solo vale si cada trabajo hecho con la API queda registrado. Los trabajos no registrados (otras claves, otros equipos, servidores) no se ven: para el valor real abre ${v}.`, stimaVuota: v => `Ningún trabajo registrado: la estimación no es indicativa. Para el valor real abre ${v}.`,
@@ -459,7 +459,7 @@ const tcEs: TestiTettoConsole = {
   invito: 'Elige arriba el límite mensual que pusiste en la Console.',
   riga: (t, u) => `Límite mensual de la Console: ${t} · usado este mes ≈ ${u}`,
   raggiunto: 'límite alcanzado: las solicitudes de la API se detienen hasta que lo subas en la Console',
-  nota: 'Este menú no cambia el límite real: solo le dice al panel cuánto vale. El límite se cambia en la Console. «Usado» cuenta solo los trabajos registrados en este equipo.',
+  nota: 'se ajusta a mano',
 }
 export const TESTI_TETTO_CONSOLE: Record<Lingua, TestiTettoConsole> = { it: tcIt, en: tcEn, de: tcDe, fr: tcFr, es: tcEs }
 
