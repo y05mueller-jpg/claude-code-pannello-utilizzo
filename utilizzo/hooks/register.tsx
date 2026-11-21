@@ -1236,7 +1236,8 @@ export const register: Register = on => {
     const opzioniTetto = [0, ...TETTI_CONSOLE, ...(tettoC > 0 && !TETTI_CONSOLE.includes(tettoC) ? [tettoC] : [])].sort((a, b) => a - b)
     const tettoRiga = ap?.presente ? (
       <Box key="tetto-console" flexDirection="column">
-        <Box flexDirection="row" gap={1} flexWrap="wrap">
+        <Box position="relative" flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
+          <Box position="absolute" bottom={1} left={0} width={46} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} paddingX={1}><Text wrap="wrap">{TC.info}</Text></Box>
           {Link ? <Link key="tetto-alza" href={TETTO_CONSOLE_URL} label={TC.alza} /> : <Text key="tetto-alza" dimColor>{TC.alza}: {TETTO_CONSOLE_URL}</Text>}
           {Select ? <Select key="tetto-menu" label={TC.menu} options={opzioniTetto.map(n => ({ value: String(n), label: n > 0 ? `${n} $` : TC.nonImp }))} value={String(tettoC)}
             onSelect={async (v: string) => { const n = Number(v); await update($, tettoConsole, () => n); try { await $.store.set('tettoConsole', n) } catch (x) { /* solo questa chat */ } }} /> : null}
