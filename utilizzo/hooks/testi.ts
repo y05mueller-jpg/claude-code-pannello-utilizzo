@@ -102,7 +102,7 @@ const it: Testi = {
   tokenPerGiorno: (m, a) => `Token per giorno di ${m} ${a}`, rigaGiorno: (t, n) => `${t} Token, ${n} messaggi`,
   totaleDi: (m, a) => `Totale di ${m} ${a}`, barra: (g, m, t, n) => `${g} ${m}: ${t} token, ${n} messaggi`,
   rigaChat: (n, t, r) => `${n} messaggi · ${t} Token · ${r} per richiesta`, ultimaAttivita: f => `ultima attività ${f}`,
-  perChat: (m, n) => `Per chat · ${m} (${n})`, mostraMeno: 'Mostra meno', mostraTutti: n => `Mostra tutti i giorni (${n})`,
+  perChat: (_m, n) => `Per chat del mese (${n})`, mostraMeno: 'Mostra meno', mostraTutti: n => `Mostra tutti i giorni (${n})`,
   notaStati: 'Gli stati «al lavoro / ferma / bloccata» sono stimati dai file delle chat; i limiti sono quelli dell\'ultima risposta.',
   senzaTitolo: 'Senza titolo',
 }
@@ -154,7 +154,7 @@ const en: Testi = {
   tokenPerGiorno: (m, a) => `Tokens per day in ${m} ${a}`, rigaGiorno: (t, n) => `${t} Tokens, ${n} messages`,
   totaleDi: (m, a) => `Total for ${m} ${a}`, barra: (g, m, t, n) => `${m} ${g}: ${t} tokens, ${n} messages`,
   rigaChat: (n, t, r) => `${n} messages · ${t} Tokens · ${r} per request`, ultimaAttivita: f => `last activity ${f}`,
-  perChat: (m, n) => `Per chat · ${m} (${n})`, mostraMeno: 'Show less', mostraTutti: n => `Show all days (${n})`,
+  perChat: (_m, n) => `Per chat this month (${n})`, mostraMeno: 'Show less', mostraTutti: n => `Show all days (${n})`,
   notaStati: 'The states "working / idle / blocked" are estimated from the chat files; limits are from the last reply.',
   senzaTitolo: 'Untitled',
 }
@@ -206,7 +206,7 @@ const de: Testi = {
   tokenPerGiorno: (m, a) => `Token pro Tag im ${m} ${a}`, rigaGiorno: (t, n) => `${t} Token, ${n} Nachrichten`,
   totaleDi: (m, a) => `Gesamt ${m} ${a}`, barra: (g, m, t, n) => `${g}. ${m}: ${t} Token, ${n} Nachrichten`,
   rigaChat: (n, t, r) => `${n} Nachrichten · ${t} Token · ${r} pro Anfrage`, ultimaAttivita: f => `zuletzt aktiv ${f}`,
-  perChat: (m, n) => `Pro Chat · ${m} (${n})`, mostraMeno: 'Weniger anzeigen', mostraTutti: n => `Alle Tage anzeigen (${n})`,
+  perChat: (_m, n) => `Pro Chat im Monat (${n})`, mostraMeno: 'Weniger anzeigen', mostraTutti: n => `Alle Tage anzeigen (${n})`,
   notaStati: 'Die Zustände «aktiv / ruhend / blockiert» werden aus den Chat-Dateien geschätzt; die Limits stammen aus der letzten Antwort.',
   senzaTitolo: 'Ohne Titel',
 }
@@ -258,7 +258,7 @@ const fr: Testi = {
   tokenPerGiorno: (m, a) => `Tokens par jour en ${m} ${a}`, rigaGiorno: (t, n) => `${t} Tokens, ${n} messages`,
   totaleDi: (m, a) => `Total de ${m} ${a}`, barra: (g, m, t, n) => `${g} ${m} : ${t} tokens, ${n} messages`,
   rigaChat: (n, t, r) => `${n} messages · ${t} Tokens · ${r} par requête`, ultimaAttivita: f => `dernière activité ${f}`,
-  perChat: (m, n) => `Par chat · ${m} (${n})`, mostraMeno: 'Afficher moins', mostraTutti: n => `Afficher tous les jours (${n})`,
+  perChat: (_m, n) => `Par chat du mois (${n})`, mostraMeno: 'Afficher moins', mostraTutti: n => `Afficher tous les jours (${n})`,
   notaStati: 'Les états « au travail / arrêtée / bloquée » sont estimés à partir des fichiers des chats ; les limites sont celles de la dernière réponse.',
   senzaTitolo: 'Sans titre',
 }
@@ -310,7 +310,7 @@ const es: Testi = {
   tokenPerGiorno: (m, a) => `Tokens por día en ${m} ${a}`, rigaGiorno: (t, n) => `${t} Tokens, ${n} mensajes`,
   totaleDi: (m, a) => `Total de ${m} ${a}`, barra: (g, m, t, n) => `${g} ${m}: ${t} tokens, ${n} mensajes`,
   rigaChat: (n, t, r) => `${n} mensajes · ${t} Tokens · ${r} por solicitud`, ultimaAttivita: f => `última actividad ${f}`,
-  perChat: (m, n) => `Por chat · ${m} (${n})`, mostraMeno: 'Mostrar menos', mostraTutti: n => `Mostrar todos los días (${n})`,
+  perChat: (_m, n) => `Por chat del mes (${n})`, mostraMeno: 'Mostrar menos', mostraTutti: n => `Mostrar todos los días (${n})`,
   notaStati: 'Los estados «trabajando / parada / bloqueada» se estiman a partir de los archivos de los chats; los límites son los de la última respuesta.',
   senzaTitolo: 'Sin título',
 }
@@ -339,7 +339,7 @@ const apiIt: TestiApi = {
   questaChat: c => `Questa chat, se pagata con l'API: circa ${c}`,
   oggiMese: (o, m) => `Oggi circa ${o} · questo mese circa ${m}`,
   stima: 'I costi sono stime con i prezzi di Opus 5.5. La memoria riletta (cache) costa molto meno: 0,20 $ per milione di token.',
-  apriRicarica: 'Ricarica e quanto costa',
+  apriRicarica: 'Ricarica e costo',
   costiTitolo: 'Quanto costa un lavoro',
   costi: [
     ['Domanda breve', '0,02–0,10 $'],
@@ -382,7 +382,7 @@ const apiEn: TestiApi = {
   questaChat: c => `This chat, if paid with the API: about ${c}`,
   oggiMese: (o, m) => `Today about ${o} · this month about ${m}`,
   stima: 'Estimate at Opus 5.5 prices: input, output and re-read memory (cache) counted separately.',
-  apriRicarica: 'Top up and what it costs',
+  apriRicarica: 'Top up and cost',
   costiTitolo: 'What a job costs',
   costi: [
     ['Short question', '$0.02–0.10'],
@@ -527,7 +527,7 @@ const altriIt: TestiAltri = {
   nessuno: n => `Altri strumenti: nessuno trovato su questo PC. Compaiono qui da soli appena li usi: ${n}.`,
   errore: (n, e) => `${n}: non riesco a contarlo (${e})`,
   ore: h => `ultime ${h} ore`, settimana: 'settimanale',
-  prezzi: n => `Prezzi API di tutti i fornitori (${n})`, colonne: 'entrata · uscita, $ per milione di token',
+  prezzi: () => 'Prezzi API dei fornitori', colonne: 'entrata · uscita, $ per milione di token',
   letto: q => `Prezzi ufficiali letti il ${q}`, pagina: f => `Pagina dei prezzi di ${f}`,
   nota: 'Il costo vero dipende anche dalla memoria riletta (cache), che costa molto meno.',
 }
@@ -539,7 +539,7 @@ const altriEn: TestiAltri = {
   nessuno: n => `Other tools: none found on this computer. They show up here by themselves as soon as you use them: ${n}.`,
   errore: (n, e) => `${n}: cannot count it (${e})`,
   ore: h => `last ${h} hours`, settimana: 'weekly',
-  prezzi: n => `API prices of all providers (${n})`, colonne: 'input · output, $ per million tokens',
+  prezzi: () => 'Providers’ API prices', colonne: 'input · output, $ per million tokens',
   letto: q => `Official prices read on ${q}`, pagina: f => `${f} pricing page`,
   nota: 'The real cost also depends on re-read memory (cache), which costs much less.',
 }
@@ -551,7 +551,7 @@ const altriDe: TestiAltri = {
   nessuno: n => `Andere Werkzeuge: keine auf diesem Computer gefunden. Sie erscheinen hier von selbst, sobald du sie benutzt: ${n}.`,
   errore: (n, e) => `${n}: kann nicht gezählt werden (${e})`,
   ore: h => `letzte ${h} Stunden`, settimana: 'wöchentlich',
-  prezzi: n => `API-Preise aller Anbieter (${n})`, colonne: 'Eingabe · Ausgabe, $ pro Million Token',
+  prezzi: () => 'API-Preise der Anbieter', colonne: 'Eingabe · Ausgabe, $ pro Million Token',
   letto: q => `Offizielle Preise gelesen am ${q}`, pagina: f => `Preisseite von ${f}`,
   nota: 'Die echten Kosten hängen auch vom wiedergelesenen Speicher (Cache) ab, der viel weniger kostet.',
 }
@@ -563,7 +563,7 @@ const altriFr: TestiAltri = {
   nessuno: n => `Autres outils : aucun trouvé sur cet ordinateur. Ils apparaissent ici tout seuls dès que tu les utilises : ${n}.`,
   errore: (n, e) => `${n} : impossible de le compter (${e})`,
   ore: h => `dernières ${h} heures`, settimana: 'hebdomadaire',
-  prezzi: n => `Prix API de tous les fournisseurs (${n})`, colonne: 'entrée · sortie, $ par million de tokens',
+  prezzi: () => 'Prix API des fournisseurs', colonne: 'entrée · sortie, $ par million de tokens',
   letto: q => `Prix officiels lus le ${q}`, pagina: f => `Page des prix de ${f}`,
   nota: 'Le coût réel dépend aussi de la mémoire relue (cache), qui coûte beaucoup moins.',
 }
@@ -575,7 +575,7 @@ const altriEs: TestiAltri = {
   nessuno: n => `Otras herramientas: ninguna en este ordenador. Aparecen aquí solas en cuanto las uses: ${n}.`,
   errore: (n, e) => `${n}: no se puede contar (${e})`,
   ore: h => `últimas ${h} horas`, settimana: 'semanal',
-  prezzi: n => `Precios API de todos los proveedores (${n})`, colonne: 'entrada · salida, $ por millón de tokens',
+  prezzi: () => 'Precios API de los proveedores', colonne: 'entrada · salida, $ por millón de tokens',
   letto: q => `Precios oficiales leídos el ${q}`, pagina: f => `Página de precios de ${f}`,
   nota: 'El coste real también depende de la memoria releída (caché), que cuesta mucho menos.',
 }
@@ -620,13 +620,16 @@ const ripiegoEn: TestiRipiego = {
 export const TESTI_RIPIEGO: Record<Lingua, TestiRipiego> = { it: ripiegoIt, en: ripiegoEn, de: ripiegoEn, fr: ripiegoEn, es: ripiegoEn }
 
 // ---- 0.9.5: un solo box «API» nella barra laterale, chiuso di default ----
-export type TestiBox = { titolo: string; rimasti: (s: string) => string; ripiegoDal: (n: number) => string; ripiegoSpento: string; avviso: string }
+export type TestiBox = { titolo: string; rimasti: (s: string) => string; ripiegoDal: (n: number) => string; ripiegoSpento: string; avviso: string; ripiegoInfo: (acceso: boolean, n: number) => string }
 const boxIt: TestiBox = {
-  titolo: 'API', rimasti: s => `≈ ${s} (stima)`, ripiegoDal: n => `ripiego dal ${n}%`, ripiegoSpento: 'ripiego spento',
+  titolo: 'API', rimasti: s => `≈ ${s}`, ripiegoDal: n => `ripiego dal ${n}%`, ripiegoSpento: 'ripiego spento',
   avviso: 'Crediti API finiti o scaduti',
+  // 0.9.27: spiegazione del cerchio accanto al box (verde = ripiego acceso, arancione = spento)
+  ripiegoInfo: (acceso, n) => `Ripiego: quando il piano è quasi pieno, i lavori passano da soli ai crediti API. ${acceso ? `Ora è acceso, dal ${n}% del piano.` : 'Ora è spento.'}`,
 }
 const boxEn: TestiBox = {
-  titolo: 'API', rimasti: s => `≈ ${s} (estimate)`, ripiegoDal: n => `fallback at ${n}%`, ripiegoSpento: 'fallback off',
+  titolo: 'API', rimasti: s => `≈ ${s}`, ripiegoDal: n => `fallback at ${n}%`, ripiegoSpento: 'fallback off',
   avviso: 'API credits used up or expired',
+  ripiegoInfo: (acceso, n) => `Fallback: when the plan is almost full, jobs switch to API credits by themselves. ${acceso ? `It is on now, from ${n}% of the plan.` : 'It is off now.'}`,
 }
 export const TESTI_BOX: Record<Lingua, TestiBox> = { it: boxIt, en: boxEn, de: boxEn, fr: boxEn, es: boxEn }

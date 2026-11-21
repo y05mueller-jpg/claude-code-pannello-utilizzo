@@ -2,7 +2,7 @@
 // qui solo il testo, con uno spazio ai lati così tutto il pulsante riceve il clic. Il clic avvisa il pannello.
 import type { ClientModule } from 'claude-code'
 
-type Props = { id: string; testo: string; spento?: boolean }
+type Props = { id: string; testo: string; spento?: boolean; colore?: string; grassetto?: boolean }
 
 const Pulsante: ClientModule<Props, boolean> = (p, s) => {
   const { Text } = s.elements
@@ -10,6 +10,6 @@ const Pulsante: ClientModule<Props, boolean> = (p, s) => {
     s.onPointer(ev => { if (ev.type === 'down') s.post({ premi: p.id }) })
     s.setState(true)
   }
-  return Text({ color: p.spento ? '#a1a1aa' : '#f4f4f5', children: [p.testo] } as any)
+  return Text({ color: p.colore ?? (p.spento ? '#a1a1aa' : '#f4f4f5'), ...(p.grassetto ? { bold: true } : {}), children: [p.testo] } as any)
 }
 export default Pulsante

@@ -34,13 +34,15 @@ const PANNELLO = 'utilizzo'
 // sotto il centro. Ogni disegno registra qui le azioni; il clic arriva come messaggio { premi: id }.
 const azioniPulsanti = new Map<string, (e: any) => unknown>()
 function pulsanteDelPannello(Client: any, BottoneApp: any, Box: any) {
-  return (p: any) => {
+  return (q: any) => {
+    // 0.9.27: `stretto` = pulsante largo quanto la sua scritta, con mezzo spazio ai lati (solo per i pulsanti disegnati dal pannello)
+    const { stretto, nome, ...p } = q
     if (!Client || p.plain) return BottoneApp(p)
-    const id = String(p.key ?? p.label ?? '')
+    const id = String(nome ?? p.key ?? p.label ?? '')
     if (p.onPress) azioniPulsanti.set(id, p.onPress)
     const fondo = p.variant === 'primary' ? '#2563eb' : '#3a3a3a', sopra = p.variant === 'primary' ? '#3b82f6' : '#4a4a4a'
     // bordo sottile e sfondo qui (nel disegno del pannello il bordo è una linea, nel modulo sarebbe una riga intera)
-    return Box({ key: `pb-${id}`, alignSelf: 'flex-start', flexShrink: 0, ...(p.minWidth ? { minWidth: p.minWidth, justifyContent: 'center' } : {}), borderStyle: 'bold', borderColor: fondo, backgroundColor: fondo, paddingX: 1, paddingTop: 0, paddingBottom: 0.17,   // il corpo delle lettere stava 3 px sotto il centro: un piccolo spazio sotto lo alza
+    return Box({ key: `pb-${id}`, alignSelf: 'flex-start', flexShrink: 0, ...(p.minWidth ? { minWidth: p.minWidth, justifyContent: 'center' } : {}), borderStyle: 'bold', borderColor: fondo, backgroundColor: fondo, paddingX: stretto ? 0.5 : 1, paddingTop: 0, paddingBottom: 0.17,   // il corpo delle lettere stava 3 px sotto il centro: un piccolo spazio sotto lo alza
       hover: { backgroundColor: sopra, borderColor: sopra },
       children: [Client({ key: `p-${id}`, module: './pulsante.tsx', props: { id, testo: String(p.label ?? ''), spento: !!p.dimColor } })] })
   }
@@ -243,9 +245,10 @@ const SCELTA_MODELLO = [
 // ---- giri di loop e spesa massima per richiesta ----
 const T_GIRI = {
   titolo: 'Loop per richiesta',
-  colonne: 'semplice · media · difficile',
+  colonne: 'semplice · intermedia · difficile',
   nome: (n: number) => `${({ 1: 'Rapido', 2: 'Normale', 3: 'Accurato', 5: 'Preciso', 8: 'Massimo' } as Record<number, string>)[n] ?? ''} · ${n} ${n === 1 ? 'giro' : 'giri'}`,
-  livelli: { leggero: 'semplice', medio: 'media', pesante: 'difficile' } as Record<string, string>,
+  // «intermedia», non «media»: è la difficoltà della richiesta, e «media» accanto a un costo sembrava una media dei costi
+  livelli: { leggero: 'semplice', medio: 'intermedia', pesante: 'difficile' } as Record<string, string>,
   avviso: (l: string, m: string, g: number, giro: string, max: string) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'} × ~${giro} → al massimo ~${max}`,
   avvisoGiri: (l: string, m: string, g: number) => `Richiesta ${l} (${m}): ${g} ${g === 1 ? 'giro' : 'giri'}`,
   consigliato: 'consigliato',
@@ -317,6 +320,7 @@ function passaggioApi(L: Limite[], ap: Api | null, soglia = 95, acceso = true): 
 const ripiegoAuto = atom({ plugin: 'utilizzo', key: 'ripiegoAuto' } as const, true)
 const ripiegoSoglia = atom({ plugin: 'utilizzo', key: 'ripiegoSoglia' } as const, 95)
 const tettoConsole = atom({ plugin: 'utilizzo', key: 'tettoConsole' } as const, -1)   // 0.9.24: tetto mensile della Console scelto dalla persona (-1 = mai scelto → config.json, 0 = non impostato)
+const larghezzaPannello = atom({ plugin: 'utilizzo', key: 'larghezza' } as const, 0)   // 0.9.27: larghezza del pannello in caratteri (larghezza.tsx); 0 = non ancora misurata
 const agenteLavoro = atom({ plugin: 'utilizzo', key: 'agenteLavoro' } as const, false)   // 0.9.6: un lavoro lanciato con agente.py è in corso (il «Tetto» allora mostra il costo)
 const ripiego = atom({ plugin: 'utilizzo', key: 'ripiego' } as const, null as Ripiego | null)
 const inCoda = atom({ plugin: 'utilizzo', key: 'ripiegoCoda' } as const, 0)   // 0.9.4: messaggi di questa chat in coda per l'aiutante
@@ -506,14 +510,14 @@ async function ripiega($: any, testo: string, forza: boolean, daYannis = true): 
 // ---- disegni (SVG) ----
 function barra(percento: number, colore: string): string {
   const p = Math.max(0, Math.min(100, percento))
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="10" viewBox="0 0 260 10"><rect width="260" height="10" rx="5" fill="#94a3b8" fill-opacity="0.25"/><rect width="${(260 * p) / 100}" height="10" rx="5" fill="${colore}"/></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="10" viewBox="0 0 260 10" preserveAspectRatio="none"><rect width="260" height="10" rx="5" fill="#94a3b8" fill-opacity="0.25"/><rect width="${(260 * p) / 100}" height="10" rx="5" fill="${colore}"/></svg>`
 }
 const coloriCss: Record<string, string> = { promptBorder: '#94a3b8', inactive: '#64748b', permission: '#8b5cf6', claude: '#d97757', warning: '#f59e0b', success: '#22c55e', error: '#ef4444', suggestion: '#3b82f6', remember: '#06b6d4', autoAccept: '#a855f7', planMode: '#14b8a6', ide: '#eab308', bashBorder: '#ec4899', cyan_FOR_SUBAGENTS_ONLY: '#06b6d4' }
 const colore = (c: string) => (c.startsWith('#') ? c : coloriCss[c] ?? BLU)
 function strisce(cat: { tokens: number; colore: string }[], totale: number): string {
   let x = 0, r = ''
   for (const c of cat) { const w = (260 * c.tokens) / Math.max(1, totale); r += `<rect x="${x}" y="0" width="${Math.max(0, w)}" height="10" fill="${colore(c.colore)}"/>`; x += w }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="10" viewBox="0 0 260 10"><clipPath id="c"><rect width="260" height="10" rx="5"/></clipPath><g clip-path="url(#c)"><rect width="260" height="10" fill="#94a3b8" fill-opacity="0.25"/>${r}</g></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="10" viewBox="0 0 260 10" preserveAspectRatio="none"><clipPath id="c"><rect width="260" height="10" rx="5"/></clipPath><g clip-path="url(#c)"><rect width="260" height="10" fill="#94a3b8" fill-opacity="0.25"/>${r}</g></svg>`
 }
 const coloreLimite = (p: number) => (p >= 90 ? '#ef4444' : p >= 70 ? '#f59e0b' : BLU)
 
@@ -521,9 +525,11 @@ function grafico(d: Dati, s: Scelta): string {
   const n = giorniNelMese(s.anno, s.mese), larg = 9, spazio = 3, alto = 120, base = alto - 16
   const valori = Array.from({ length: n }, (_, i) => d.giorni[chiave(s.anno, s.mese, i + 1)]?.token ?? 0)
   const massimo = Math.max(1, ...valori), W = n * (larg + spazio) + 4
+  // 0.9.27: il giorno si evidenzia solo nel mese di oggi; negli altri mesi nessuna barra è evidenziata
+  const oggi = new Date(), meseDiOggi = s.anno === oggi.getFullYear() && s.mese === oggi.getMonth()
   let barre = ''
   valori.forEach((v, i) => {
-    const h = v ? Math.max(2, ((base - 4) * v) / massimo) : 0, x = 2 + i * (larg + spazio), sel = i + 1 === s.giorno
+    const h = v ? Math.max(2, ((base - 4) * v) / massimo) : 0, x = 2 + i * (larg + spazio), sel = meseDiOggi && i + 1 === s.giorno
     const titolo = T.barra(i + 1, T.mesi[s.mese], breve(v), d.giorni[chiave(s.anno, s.mese, i + 1)]?.messaggi ?? 0)
     barre += `<g><title>${titolo}</title><rect x="${x}" y="0" width="${larg}" height="${base}" fill="transparent"/>`
     barre += `<rect x="${x}" y="${base - h}" width="${larg}" height="${h}" rx="2" fill="${sel ? BLU_SCURO : BLU}"${sel ? ' stroke="#93c5fd" stroke-width="1.5"' : ''}/></g>`
@@ -789,6 +795,12 @@ export const register: Register = on => {
       await update($, menu, () => '')
       return {}
     }
+    // 0.9.27: zona-info.tsx: il cursore entra su una scritta (apre la sua finestra) o ne esce (la chiude, se è ancora la sua)
+    const colonne = (e.data as any)?.colonne
+    if (typeof colonne === 'number' && colonne > 0) { await update($, larghezzaPannello, (x: number) => (x === colonne ? x : colonne)); return {} }
+    const sopra = (e.data as any)?.infoSopra, via = (e.data as any)?.infoVia
+    if (typeof sopra === 'string') { await update($, info, () => sopra); return {} }
+    if (typeof via === 'string') { await update($, info, (v: string) => (v === via ? '' : v)); return {} }
     const id = (e.data as any)?.info
     if (typeof id !== 'string') return next(e)
     await update($, info, (v: string) => (v === id ? '' : id))
@@ -978,7 +990,7 @@ export const register: Register = on => {
     const ora = d?.aggiornato ?? Date.now()
     const disegno = (source: string, alt: string, w?: number, hh?: number, interattivo?: boolean) =>
       (Svg ? <Svg source={source} alt={alt} width={w} height={hh} isInteractive={interattivo ? true : undefined} /> : <Text dimColor>{alt}</Text>)
-    const barraSvg = (p: number, c: string, alt: string) => disegno(barra(p, c), alt, 260, 10)
+    const barraSvg = (p: number, c: string, alt: string) => disegno(barra(p, c), alt, undefined, 10)   // 0.9.27: larghezza libera (al massimo 260 px): non blocca più il restringimento del pannello
     type Cifre = { messaggi: number; richieste: number; token: number; input: number; output: number; cacheScritta: number; cacheLetta: number; scritti?: number }
     // riquadri due per riga. Le righe sono scritte dall'ultima alla prima e mostrate al contrario (column-reverse):
     // così ogni riga è disegnata DOPO quella sotto, e la finestrella che compare sotto un riquadro resta visibile sopra di essa
@@ -1000,13 +1012,20 @@ export const register: Register = on => {
       const riquadro = ([nome, valore, nota]: [string, string, string], n: number) => (
         // titolo e numero disegnati da titolo-clic.tsx: un clic sul riquadro apre la spiegazione sotto, un altro la chiude
         // (niente Button: l'app desktop lo disegna come pulsante nativo e rovina il riquadro)
-        <Box key={`${gruppo}-${n}`} position="relative" flexDirection="column" alignSelf="flex-start" flexGrow={0} flexShrink={0} borderStyle="bold" borderColor="#a1a1aa" paddingX={1} paddingY={0}>
+        <Box key={`${gruppo}-${n}`} flexDirection="column" alignSelf="flex-start" flexGrow={0} flexShrink={0}>
+        <Box flexDirection="column" borderStyle="bold" borderColor="#a1a1aa" paddingX={1} paddingY={0}>
           {Client && !senzaClic
             ? <Client key={`${gruppo}-${n}-clic`} module="./titolo-clic.tsx" props={{ id: `${gruppo}-${n}`, nome, valore, piuLungo }} />
             : [<Text dimColor size="footnote">{nome}</Text>, <Text bold size="heading">{valore}</Text>, <Box height={0} overflow="hidden"><Text size="footnote">{piuLungo}</Text></Box>]}
-          <Box position="absolute" top={3} left={0} right={0} display={infoAperta === `${gruppo}-${n}` ? 'flex' : 'none'} borderStyle="bold" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}
-            hover={senzaClic ? { display: 'flex' } : undefined}>
-            <Text size="caption" color="#e2e8f0">{nota}</Text>
+        </Box>
+          {/* 0.9.27: la finestra blu è agganciata a un punto alto 0 messo subito sotto il riquadro bianco e largo come lui:
+              parte dal suo bordo inferiore, qualunque sia l'altezza del riquadro, e copre i riquadri sotto senza spostarli.
+              Deve essere «absolute»: solo quelle vengono disegnate sopra il resto (una finestra nel flusso finiva sotto le scritte) */}
+          <Box position="relative" height={0}>
+            <Box position="absolute" top={0} left={0} right={0} display={infoAperta === `${gruppo}-${n}` ? 'flex' : 'none'} borderStyle="bold" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}
+              hover={senzaClic ? { display: 'flex' } : undefined}>
+              <Text size="caption" color="#e2e8f0" wrap="wrap">{nota}</Text>
+            </Box>
           </Box>
         </Box>
       )
@@ -1069,42 +1088,30 @@ export const register: Register = on => {
     const meseK = oggiK.slice(0, 7)
     const costoMese = Object.keys(d?.giorni ?? {}).filter(k => k.startsWith(meseK)).reduce((x, k) => x + costoGiorno(k), 0)
     const cfApi = creditiFinitiDi(ap, await read($, ripiego))
+    // 0.9.27: larghezza che una finestra puo avere senza uscire dal pannello (4 caratteri in meno per bordo e margine del box)
+    const colPannello = Number(await read($, larghezzaPannello)) || 0
+    const largFinestra = (massimo: number) => (colPannello > 0 ? Math.max(16, Math.min(massimo, colPannello - 4)) : Math.min(massimo, 36))
     const TCs = TESTI_TETTO_CONSOLE[(linguaDa || 'it') as Lingua] ?? TESTI_TETTO_CONSOLE.it
     const sezioneApi = sezione(A.sez,
       // 0.9.7: il saldo è una stima (caricati meno registrati): «≈ X $ (stima)», la spiegazione al passaggio del mouse, e il collegamento al saldo vero
       totCredito > 0 ? (
-        <Box key="saldo-riga" position="relative" flexDirection="row" alignItems="center" flexWrap="wrap" gap={1}>
-          <Box position="absolute" bottom={1} left={0} width={46} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} paddingX={1}><Text wrap="wrap">{A.saldoNota}</Text></Box>
-          <Text>{A.rimasti(soldi(rimasto), soldi(totCredito))}</Text>
-          {Link ? <Link key="saldo-vero" href={SALDO_URL} label={A.saldoVero} /> : <Text key="saldo-vero" dimColor>{A.saldoVero}: {SALDO_URL}</Text>}
+        // 0.9.27: la spiegazione compare SOTTO la riga, nel flusso (non sovrapposta): pulsanti, menu e collegamenti dell'app
+        // sono disegnati sempre sopra a tutto, quindi una finestra sovrapposta a loro finiva dietro
+        <Box flexDirection="row" justifyContent="space-between" alignItems="flex-end" gap={1}>
+          <Box flexShrink={1}><Text>{A.rimasti(soldi(rimasto), soldi(totCredito))}</Text></Box>
+          {/* la scritta blu, vera (un clic apre la Console), dentro una zona con chiave: la finestra si apre solo con il cursore sulla scritta.
+              La finestra deve stare dentro la zona; parte da sotto la scritta e si allarga verso sinistra */}
+          <Box key="saldo-zona" flexDirection="column" flexShrink={0}>
+            {Link ? <Link key="saldo-vero" href={SALDO_URL} label={A.saldoVero} /> : <Text key="saldo-vero" dimColor>{A.saldoVero}: {SALDO_URL}</Text>}
+            <Box position="relative" height={0}>
+              <Box position="absolute" top={0} right={0} width={largFinestra(44)} display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}><Text wrap="wrap">{A.saldoNota}</Text></Box>
+            </Box>
+          </Box>
         </Box>
       ) : null,
       totCredito > 0 ? barraSvg(totCredito ? (100 * rimasto) / totCredito : 0, rimasto / Math.max(1, totCredito) < 0.2 ? '#ef4444' : '#22c55e', `${A.rimasti(soldi(rimasto), soldi(totCredito))} · ${A.saldoNota}`) : null,
       totCredito > 0 ? <Text key="stima-nota" size="caption" color={(ap?.lavori ?? 0) === 0 ? '#f59e0b' : undefined} dimColor={(ap?.lavori ?? 0) > 0}>{(ap?.lavori ?? 0) === 0 ? TCs.stimaVuota(A.saldoVero) : TCs.stimaNota(A.saldoVero)}</Text> : null,
       cfApi.anthropic ? <Text key="saldo-anthropic" size="caption" color="#f59e0b">● {A.anthropicFiniti}</Text> : null,
-      // toccando ⓘ la spiegazione compare qui, sopra il box (dove prima c'era la scritta arancione)
-      apInfo ? (
-        <Box flexDirection="column" borderStyle="bold" borderColor={BLU} paddingX={1} gap={1}>
-          {/* tutto il testo dei crediti sta qui dentro: si vede solo toccando ⓘ */}
-          <Box flexDirection="column">
-            {righeCrediti}
-            <Text dimColor>{A.lavori(ap?.lavori ?? 0, soldi(ap?.speso ?? 0))}</Text>
-            {d ? <Text>{A.questaChat(soldi(costoChat))}</Text> : null}
-            {d ? <Text dimColor>{A.oggiMese(soldi(costoGiorno(oggiK)), soldi(costoMese))}</Text> : null}
-          </Box>
-          {/* scelta automatica del modello: regole, lavori per modello, risparmio rispetto al modello di punta */}
-          <Box flexDirection="column">
-            <Text bold color={BLU}>{A.sceltaTitolo}: {ap?.scelta === false ? A.sceltaSpenta : A.sceltaAttiva}</Text>
-            {ap?.scelta === false ? null : A.sceltaRegole.map((r, i) => <Text key={`regola-${i}`} size="caption">{r}</Text>)}
-            {Object.entries(ap?.perModello ?? {}).map(([m, x]) => <Text key={`permod-${m}`} dimColor size="caption">{A.perModello(A.nomeModello[m] ?? m, x.lavori, soldi(x.costo))}</Text>)}
-            {(ap?.risparmio ?? 0) > 0 ? <Text color="#22c55e" size="caption">{A.risparmio(soldi(ap?.risparmio ?? 0))}</Text> : null}
-          </Box>
-          {ap && !ap.chiave ? <Text color="#f59e0b" size="caption">{A.senzaChiave}</Text> : null}
-          <Text size="caption">{A.nonClaudeCode}</Text>
-          <Text dimColor size="caption">{A.stima}</Text>
-          <Text dimColor size="caption">{A.saldoNota}</Text>
-        </Box>
-      ) : null,
       // il box «Ricarica e quanto costa» con accanto la piccola icona ⓘ: la spiegazione compare solo toccandola
       <Box flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
         <Box flexDirection="row" alignItems="center" gap={1}>
@@ -1143,10 +1150,34 @@ export const register: Register = on => {
           ...(ap?.ultimi ?? []).map((l, i) => <Text key={`lav-${i}`} dimColor>{l.data.slice(5, 16).replace('T', ' ')} · {l.titolo} · {A.nomeModello[l.modello] ?? l.modello} · {soldi(l.costo)}</Text>),
         ] : null}
       </Box>,
+      // toccando ⓘ la spiegazione compare qui, SOTTO il box di «Ricarica e costo» (0.9.27: prima si apriva sopra)
+      apInfo ? (
+        <Box flexDirection="column" borderStyle="bold" borderColor={BLU} paddingX={1} gap={1}>
+          {/* tutto il testo dei crediti sta qui dentro: si vede solo toccando ⓘ */}
+          <Box flexDirection="column">
+            {righeCrediti}
+            <Text dimColor>{A.lavori(ap?.lavori ?? 0, soldi(ap?.speso ?? 0))}</Text>
+            {d ? <Text>{A.questaChat(soldi(costoChat))}</Text> : null}
+            {d ? <Text dimColor>{A.oggiMese(soldi(costoGiorno(oggiK)), soldi(costoMese))}</Text> : null}
+          </Box>
+          {/* scelta automatica del modello: regole, lavori per modello, risparmio rispetto al modello di punta */}
+          <Box flexDirection="column">
+            <Text bold color={BLU}>{A.sceltaTitolo}: {ap?.scelta === false ? A.sceltaSpenta : A.sceltaAttiva}</Text>
+            {ap?.scelta === false ? null : A.sceltaRegole.map((r, i) => <Text key={`regola-${i}`} size="caption">{r}</Text>)}
+            {Object.entries(ap?.perModello ?? {}).map(([m, x]) => <Text key={`permod-${m}`} dimColor size="caption">{A.perModello(A.nomeModello[m] ?? m, x.lavori, soldi(x.costo))}</Text>)}
+            {(ap?.risparmio ?? 0) > 0 ? <Text color="#22c55e" size="caption">{A.risparmio(soldi(ap?.risparmio ?? 0))}</Text> : null}
+          </Box>
+          {ap && !ap.chiave ? <Text color="#f59e0b" size="caption">{A.senzaChiave}</Text> : null}
+          <Text size="caption">{A.nonClaudeCode}</Text>
+          <Text dimColor size="caption">{A.stima}</Text>
+          <Text dimColor size="caption">{A.saldoNota}</Text>
+        </Box>
+      ) : null,
     )
 
     // giri di loop per richiesta: un menu a scelta multipla (consigliato o una delle 5 scelte, con i costi),
     // e sotto un secondo menu, solo da guardare, con il costo effettivo delle ultime richieste
+    const NBSP = String.fromCharCode(160)
     const gScelta = await read($, giri)
     const livNow = ((await read($, ultimoLivello)) || 'medio') as Livello
     const gAttivi = giriEffettivi(gScelta, livNow)
@@ -1154,27 +1185,79 @@ export const register: Register = on => {
     const totSessione = await read($, costoSessione)
     const scegli = (n: number) => { void update($, giri, () => n); void $.store.set('giri', n) }
     const tre = (n: number) => `${soldi(tetto(n, 'leggero'))} · ${soldi(tetto(n, 'medio'))} · ${soldi(tetto(n, 'pesante'))}`
+    // cifra con il $ attaccato ("1,00$"): cosi non va mai a capo da solo
+    const soldiUniti = (n: number) => soldi(n).replace(/\s+\$/g, '$')
+    // voce corta, su una riga: nome · numero di giri · ≈ costo
+    const voceGiri = (n: number, auto: boolean) => `${T_GIRI.nome(n).split(' · ')[0]} · ${n}${auto ? ' (auto)' : ''} · ≈ ${soldiUniti(tetto(n, livNow))}`
     const opzGiri = [
-      { value: '0', label: `${T_GIRI.nome(CONSIGLIATI[livNow])} (auto) · ${T_GIRI.livelli[livNow]} ${soldi(tetto(CONSIGLIATI[livNow], livNow))}` },
-      ...OPZIONI_GIRI.map(n => ({ value: String(n), label: `${T_GIRI.nome(n)} · ${T_GIRI.livelli[livNow]} ${soldi(tetto(n, livNow))}` })),
+      // 0.9.27: voci corte, su una riga sola: nome · numero di giri · ≈ costo (gli spazi non vanno a capo)
+      { value: '0', label: voceGiri(CONSIGLIATI[livNow], true) },
+      ...OPZIONI_GIRI.map(n => ({ value: String(n), label: voceGiri(n, false) })),
     ]
     const ora2 = (t: number) => { const d0 = new Date(t); return `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}` }
+    // 0.9.27: al posto della parola un cerchio colorato: verde semplice, arancione intermedia, rosso difficile
+    const CERCHIO_LIVELLO: Record<string, string> = { leggero: '#22c55e', medio: '#f59e0b', pesante: '#ef4444' }
     const opzCosti = rich.length
-      ? rich.map((x, i) => ({ value: String(i), label: `${ora2(x.ora)} · ${T_GIRI.livelli[x.liv] ?? x.liv} · ${soldi(x.costo)}${x.inCorso ? ' …' : ''}` }))
+      ? rich.map((x, i) => ({ value: String(i), label: `${ora2(x.ora)} · ${soldi(x.costo)}${x.inCorso ? ' …' : ''}` }))
       : [{ value: '0', label: T_GIRI.nessuna }]
     const totale = rich.filter(x => !x.inCorso).reduce((t, x) => t + x.costo, 0)
+    const rigaCosto = (scritta: string, cifra: string, sopra: number) => (
+      <Box flexDirection="row" flexWrap="wrap" alignItems="flex-end" marginTop={sopra}>
+        {String(scritta).split(' ').filter(Boolean).map(parola => <Text>{parola + NBSP}</Text>)}
+        <Box flexGrow={1} flexShrink={0} flexDirection="row" justifyContent="flex-end"><Text bold color="#ffffff">{cifra.split(' ').join(NBSP)}</Text></Box>
+      </Box>
+    )
     const sezioneGiri = sezione(T_GIRI.titolo,
-      <Box key="giri-riquadro" flexDirection="column" borderStyle="bold" paddingX={1} gap={0}>
-        {Select
-          ? <Box flexDirection="row" alignItems="center"><Select key="giri-scelta" options={opzGiri} value={String(gScelta)} onSelect={(v: string) => scegli(Number(v))} /></Box>
-          : <Text>{T_GIRI.nome(gAttivi)}{gScelta === 0 ? ' (auto)' : ''}</Text>}
-        <Box marginTop={1}><Text dimColor size="caption">{T_GIRI.costoEffettivo}</Text></Box>
-        {Select
-          ? <Select key="giri-costi" options={opzCosti} value="0" onSelect={() => { $.ui.invalidate('ui.render') }} />
-          : <Text>{opzCosti[0]?.label}</Text>}
-        <Box flexDirection="row" justifyContent="space-between" marginTop={1} gap={1}><Box flexShrink={1}><Text>{T_GIRI.sessione}</Text></Box><Text bold color="#ffffff">{soldi(totSessione)}</Text></Box>
-        {ap?.presente ? <Box flexDirection="row" justifyContent="space-between" gap={1}><Box flexShrink={1}><Text>{T_GIRI.spesoVero}</Text></Box><Text bold color="#ffffff">{soldi(ap.speso ?? 0)}</Text></Box> : null}
-        {rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null}
+      // 0.9.27: due caselle separate, il nome del livello («Normale») e il costo stimato («≈ 1,00 $»): premendo una delle due
+      // si apre sotto la stessa finestra con i livelli di loop. Il riquadro è scritto al contrario (column-reverse) perché
+      // la finestra sia disegnata per ultima e copra quello che c'è sotto; mentre è aperta, il menu dei costi sotto diventa
+      // testo semplice (i menu dell'app sono disegnati sempre sopra a tutto e si vedrebbero attraverso la finestra).
+      <Box key="giri-riquadro" flexDirection="column-reverse" borderStyle="bold" paddingX={1} gap={0}>
+        {[
+        <Box flexDirection="column">
+          <Box flexDirection="row" alignItems="center" gap={1}>
+            <Button key="giri-nome" nome="giri-nome" label={T_GIRI.nome(gAttivi).split(' · ')[0]} onPress={() => { void update($, menu, (x: string) => (x === 'giri' ? '' : 'giri')) }} />
+            <Button key="giri-numero" nome="giri-numero" label={String(gAttivi)} onPress={() => { void update($, menu, (x: string) => (x === 'giri' ? '' : 'giri')) }} />
+            <Button key="giri-costo" nome="giri-costo" label={`≈ ${soldiUniti(tetto(gAttivi, livNow))}`} onPress={() => { void update($, menu, (x: string) => (x === 'giri' ? '' : 'giri')) }} />
+          </Box>
+          {menuAperto === 'giri' ? (
+            <Box position="relative" height={0}>
+              {/* senza «right»: la finestra è larga quanto la voce più lunga, non quanto il pannello */}
+              <Box position="absolute" top={0} left={0} width={largFinestra(Math.max(...opzGiri.map(o => o.label.length)) + 9)} flexDirection="column" alignItems="stretch" gap={0.4} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1} paddingY={0.4}>
+                {opzGiri.map(o => (
+                  <Box key={`giri-voce-${o.value}`} flexDirection="column" alignItems="stretch" paddingTop={0.25} paddingBottom={0.25}><Button key={`giri-op-${o.value}`} stretto label={o.label.split(' ').join(NBSP)} variant={o.value === String(gScelta) ? 'primary' : undefined} onPress={() => { scegli(Number(o.value)); void update($, menu, () => '') }} /></Box>
+                ))}
+              </Box>
+            </Box>
+          ) : null}
+        </Box>,
+        <Box marginTop={1}><Text dimColor size="caption">{T_GIRI.costoEffettivo}</Text></Box>,
+        // 0.9.27: menu dei costi disegnato dal pannello (quello dell'app accetta solo testo e si apre dove vuole lui):
+        // si apre sempre verso il basso e ogni riga ha accanto il cerchio colorato del suo livello
+        <Box key="giri-costi-blocco" flexDirection="column">
+          <Box flexDirection="row" alignItems="center" gap={1}>
+            <Button key="giri-costi-apri" label={`${opzCosti[0].label.split(' ').join(NBSP)} ${menuAperto === 'costi' ? '▴' : '▾'}`} onPress={() => { void update($, menu, (x: string) => (x === 'costi' ? '' : 'costi')) }} />
+            {rich.length ? <Text color={CERCHIO_LIVELLO[rich[0].liv] ?? '#f59e0b'}>●</Text> : null}
+          </Box>
+          {menuAperto === 'costi' && rich.length ? (
+            <Box position="relative" height={0}>
+              <Box position="absolute" top={0} left={0} width={largFinestra(Math.max(...opzCosti.map(o => o.label.length)) + 7)} flexDirection="column" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+                {rich.map((x, i) => (
+                  <Box key={`giri-costi-voce-${i}`} flexDirection="row" alignItems="center" gap={1}>
+                    <Text color="#e2e8f0">{opzCosti[i].label.split(' ').join(NBSP)}</Text>
+                    <Text color={CERCHIO_LIVELLO[x.liv] ?? '#f59e0b'}>●</Text>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          ) : null}
+        </Box>,
+        // 0.9.27: con il pannello stretto la scritta va a capo parola per parola e la cifra resta a destra, sulla stessa riga
+        // dell'ultima parola; solo se non ci sta scende sotto, sempre a destra e mai spezzata tra numero e $
+        rigaCosto(T_GIRI.sessione, soldi(totSessione), 1),
+        ap?.presente ? rigaCosto(T_GIRI.spesoVero, soldi(ap.speso ?? 0), 0) : null,
+        rich.length > 1 ? <Text dimColor size="caption">{T_GIRI.totale(rich.filter(x => !x.inCorso).length, soldi(totale))}</Text> : null,
+        ].filter(Boolean).reverse()}
       </Box>,
     )
 
@@ -1215,7 +1298,7 @@ export const register: Register = on => {
     const ripiegoRiga = ap?.presente ? (() => {
       const testo = creditiFiniti && !pa.attivo ? '' : pa.attivo ? X.apiAttivo(Math.round(pa.piano))
         : pa.manca === 'chiave' ? X.apiChiave : pa.manca === 'agente' ? X.apiAgente
-          : pa.manca === 'spento' ? X.apiSpento : pa.manca === 'crediti' ? '' : X.apiPronto(sogliaRip)
+          : pa.manca === 'spento' ? '' : pa.manca === 'crediti' ? '' : X.apiPronto(sogliaRip)
       const RR = testiRipiego()
       return (
         <Box flexDirection="column">
@@ -1235,20 +1318,35 @@ export const register: Register = on => {
     const stTetto = statoTetto(tettoC, usatiMese)
     const opzioniTetto = [0, ...TETTI_CONSOLE, ...(tettoC > 0 && !TETTI_CONSOLE.includes(tettoC) ? [tettoC] : [])].sort((a, b) => a - b)
     const tettoRiga = ap?.presente ? (
-      <Box key="tetto-console" flexDirection="column">
-        <Box position="relative" flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
-          <Box position="absolute" bottom={1} left={0} width={46} backgroundColor="#1c1c1c" display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} paddingX={1}><Text wrap="wrap">{TC.info}</Text></Box>
-          {Link ? <Link key="tetto-alza" href={TETTO_CONSOLE_URL} label={TC.alza} /> : <Text key="tetto-alza" dimColor>{TC.alza}: {TETTO_CONSOLE_URL}</Text>}
-          {Select ? <Select key="tetto-menu" label={TC.menu} options={opzioniTetto.map(n => ({ value: String(n), label: n > 0 ? `${n} $` : TC.nonImp }))} value={String(tettoC)}
-            onSelect={async (v: string) => { const n = Number(v); await update($, tettoConsole, () => n); try { await $.store.set('tettoConsole', n) } catch (x) { /* solo questa chat */ } }} /> : null}
+      // scritto al contrario e mostrato con column-reverse: la riga con la finestra è disegnata per ultima, così la finestra copre la scritta sotto
+      <Box key="tetto-console" flexDirection="column-reverse">
+        {[
+        // riga scritta al contrario (row-reverse + wrap-reverse, allineata a sinistra): a schermo resta «Alza il tetto · Tetto · si imposta
+        // manualmente», anche quando va a capo, ma la nota è disegnata PRIMA della finestra, che così la copre.
+        // La finestra si apre solo con il cursore sulla scritta blu (gruppo «scope») e parte subito sotto la riga di «Alza il tetto».
+        <Box flexDirection="row-reverse" justifyContent="flex-end" alignItems="center" gap={1} flexWrap="wrap-reverse">
           <Text key="tetto-nota" size="caption" dimColor>{TC.nota}</Text>
-        </Box>
-        {stTetto.stato === 'nonImpostato'
+          <Box flexDirection="column">
+            <Box flexDirection="row" alignItems="center" gap={1}>
+              <Box key="tetto-zona" flexDirection="column" flexShrink={0}>
+                {Link ? <Link key="tetto-alza" href={TETTO_CONSOLE_URL} label={TC.alza} /> : <Text key="tetto-alza" dimColor>{TC.alza}: {TETTO_CONSOLE_URL}</Text>}
+                <Box position="relative" height={0}>
+                  <Box position="absolute" top={0} left={0} width={largFinestra(44)} display="none" hover={{ display: 'flex' }} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}><Text wrap="wrap">{TC.info}</Text></Box>
+                </Box>
+              </Box>
+              {Select ? <Select key="tetto-menu" label={TC.menu} options={opzioniTetto.map(n => ({ value: String(n), label: n > 0 ? `${n} $` : TC.nonImp }))} value={String(tettoC)}
+                onSelect={async (v: string) => { const n = Number(v); await update($, tettoConsole, () => n); try { await $.store.set('tettoConsole', n) } catch (x) { /* solo questa chat */ } }} /> : null}
+            </Box>
+          </Box>
+        </Box>,
+        stTetto.stato === 'nonImpostato'
           ? <Text size="caption" dimColor>{TC.invito}</Text>
-          : <Text size="caption" color={stTetto.stato === 'raggiunto' ? '#ef4444' : stTetto.stato === 'vicino' ? '#f59e0b' : undefined}>{TC.riga(soldi(tettoC), soldi(usatiMese))}{stTetto.stato === 'raggiunto' ? ` · ${TC.raggiunto}` : ''}</Text>}
+          : <Text size="caption" color={stTetto.stato === 'raggiunto' ? '#ef4444' : stTetto.stato === 'vicino' ? '#f59e0b' : undefined}>{TC.riga(soldi(tettoC), soldi(usatiMese))}{stTetto.stato === 'raggiunto' ? ` · ${TC.raggiunto}` : ''}</Text>,
+        ].reverse()}
       </Box>
     ) : null
-    const titoloBox = `${boxAperto ? '▾' : '▸'} ${BX.titolo}${ap?.presente ? ` · ${BX.rimasti(soldi(rimasto))}` : ''} · ${autoRip ? BX.ripiegoDal(sogliaRip) : BX.ripiegoSpento}`
+    // 0.9.27: il box finisce dopo la cifra; lo stato del ripiego è il cerchio accanto (verde acceso, arancione spento)
+    const titoloBox = `${boxAperto ? '▾' : '▸'} ${BX.titolo}${ap?.presente ? ` · ${BX.rimasti(soldi(rimasto))}` : ''}`
     const interni = [
       creditiFiniti ? <Box key="box-finiti" flexDirection="row" flexWrap="wrap" gap={1}><Text size="caption" color="#f59e0b">● {cfApi.anthropic ? A.anthropicFiniti : X.apiFiniti}</Text>{Link ? <Link key="box-saldo-vero" href={SALDO_URL} label={A.saldoVero} /> : <Text size="caption" dimColor>{SALDO_URL}</Text>}</Box> : null,
       ripiegoRiga,
@@ -1260,9 +1358,17 @@ export const register: Register = on => {
     const sezioneBox = (
       <Box flexDirection="column-reverse" borderStyle="bold" paddingX={1} gap={1}>
         {[
-          <Box position="relative" flexDirection="row" alignItems="center" gap={1}>
-            <Button key="box-api" label={titoloBox} onPress={() => { const v = !boxAperto; void update($, boxApi, () => v); try { void Promise.resolve($.store.set('boxApi', v)).catch(() => {}) } catch (x) { /* solo questa chat */ } }} />
-            {creditiFiniti && !boxAperto ? <Text color="#f59e0b">●</Text> : null}
+          <Box flexDirection="column">
+            <Box flexDirection="row" alignItems="center" gap={1}>
+              <Button key="box-api" label={titoloBox} onPress={() => { const v = !boxAperto; void update($, boxApi, () => v); try { void Promise.resolve($.store.set('boxApi', v)).catch(() => {}) } catch (x) { /* solo questa chat */ } }} />
+              {/* cerchio del ripiego: passandoci sopra si apre la spiegazione (stesso gruppo «scope» della finestra sotto) */}
+              {Client ? <Client key="zona-ripiego" module="./zona-info.tsx" props={{ id: 'ripiego', testo: '●', colore: autoRip ? '#22c55e' : '#f59e0b' }} />
+                : <Text color={autoRip ? '#22c55e' : '#f59e0b'}>●</Text>}
+              {creditiFiniti && !boxAperto ? <Text color="#ef4444">●</Text> : null}
+            </Box>
+            <Box position="relative" height={0}>
+              <Box position="absolute" top={0} left={0} right={0} display={infoAperta === 'ripiego' ? 'flex' : 'none'} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}><Text wrap="wrap">{BX.ripiegoInfo(autoRip, sogliaRip)}</Text></Box>
+            </Box>
           </Box>,
           boxAperto ? <Box flexDirection="column-reverse" gap={1}>{[...interni].reverse()}</Box> : null,
         ].filter(Boolean).reverse()}
@@ -1301,7 +1407,7 @@ export const register: Register = on => {
           : statoComprimi && statoComprimi !== 'in corso' ? <Text dimColor>{statoComprimi}</Text> : null,
         <Text dimColor>{mem?.tokens ? T.diToken(breve(mem.tokens), breve(mem.window)) : '—'}</Text>,
         mem?.categorie?.length
-          ? disegno(strisce(mem.categorie.filter(c => c.nome !== 'Free space'), mem.window), T.composizione, 260, 10)
+          ? disegno(strisce(mem.categorie.filter(c => c.nome !== 'Free space'), mem.window), T.composizione, undefined, 10)
           : barraSvg(pMem, pMem >= 85 ? '#f59e0b' : BLU, T.memoriaPct(Math.round(pMem)))),
       // il riquadro che spiega cosa c'è nella memoria di questa chat
       mem ? (
@@ -1352,16 +1458,33 @@ export const register: Register = on => {
       sceltaStrumento,
       sezione(T.sessioni,
         // accanto a «bloccate» una piccola ⓘ: la nota sugli altri strumenti compare solo passandoci sopra (key sul Box visibile, mai su quello nascosto)
-        <Box key="sessioni-riga" position="relative" flexDirection="row" gap={1}>
-          <Text><Text color={BLU} bold>{conta('al lavoro')}</Text> {T.alLavoro} · <Text bold>{conta('ferma')}</Text> {T.ferme} · <Text color="#ef4444" bold>{conta('bloccata')}</Text> {T.bloccate}</Text>
+        <Box key="sessioni-riga" position="relative" flexDirection="row" alignItems="flex-end" gap={1}>
+          {/* 0.9.27: ogni numero nel suo riquadro, con la scritta sopra, centrata sul riquadro */}
+          {([[T.alLavoro, conta('al lavoro'), BLU], [T.ferme, conta('ferma'), undefined], [T.bloccate, conta('bloccata'), '#ef4444']] as [string, number, string | undefined][]).map(([nome, num, colore], n) => (
+            <Box key={`sessioni-casella-${n}`} flexDirection="column" alignItems="center" flexShrink={0}>
+              <Text dimColor size="footnote">{nome.split(' ').join(String.fromCharCode(160))}</Text>
+              <Box flexDirection="row" justifyContent="center" borderStyle="bold" borderColor="#a1a1aa" paddingX={1} paddingTop={0} paddingBottom={0.17}>
+                {Client ? <Client key={`sessioni-cifra-${n}`} module="./pulsante.tsx" props={{ id: `sessioni-cifra-${n}`, testo: String(num), grassetto: true, ...(colore ? { colore } : {}) }} /> : <Text bold color={colore}>{String(num)}</Text>}
+              </Box>
+            </Box>
+          ))}
           {/* la finestra si apre solo col clic sulla ⓘ (un altro clic la chiude), non passandoci sopra */}
-          {Client ? <Client key="sessioni-info" module="./info-clic.tsx" props={{ id: 'sessioni' }} /> : <Text dimColor>ⓘ</Text>}
-          <Box position="absolute" top={1} left={0} right={0} display={Client && infoAperta === 'sessioni' ? 'flex' : 'none'} hover={Client ? undefined : { display: 'flex' }} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+          {Client ? <Client key="sessioni-info" module="./info-clic.tsx" props={{ id: 'sessioni', grande: true }} /> : <Text dimColor>ⓘ</Text>}
+          <Box position="absolute" top={4} left={0} right={0} display="none" hover={Client ? undefined : { display: 'flex' }} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
             <Text size="caption" color="#e2e8f0">{T.notaStati}</Text>
             {!trovati.length && alt ? <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text> : null}
           </Box>
         </Box>,
         <Text dimColor>{T.suTot(t.sessioni)}</Text>,
+        // 0.9.27: la finestra della ⓘ si apre appena sotto «su N in tutto», sopra a quello che segue
+        Client && infoAperta === 'sessioni' ? (
+          <Box position="relative" height={0}>
+            <Box position="absolute" top={0} left={0} right={0} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1}>
+              <Text size="caption" color="#e2e8f0">{T.notaStati}</Text>
+              {!trovati.length && alt ? <Text size="caption" color="#e2e8f0">{X.nessuno(nonTrovati.join(', '))}</Text> : null}
+            </Box>
+          </Box>
+        ) : null,
         ...erroriAltri),
       sezione(T.totale,
         // la misura in cui mostrare i token: un pulsante, e solo quando lo premi compare l'elenco delle scelte.
@@ -1375,14 +1498,14 @@ export const register: Register = on => {
           <Text>{T.ugualeToken}</Text>
         </Box>
         {menuAperto === 'misura' ? (
-          <Box position="absolute" top={3} left={0} right={0} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
+          <Box position="relative" height={0}><Box position="absolute" top={0} left={0} right={0} flexDirection="column" gap={1} borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
             <Box flexDirection="column" alignItems="stretch" gap={1}>
               {Object.keys(MISURE).map(k => (
                 <Button key={`misura-${k}`} label={nomeMisura(k).nome.replace(/^1 /, '')} variant={k === m ? 'primary' : undefined} onPress={() => { void update($, misura, () => k); void update($, menu, () => '') }} />
               ))}
             </Box>
             <Text dimColor size="caption">{nomeMisura(m).spiega}</Text>
-          </Box>
+          </Box></Box>
         ) : null}
         </Box>
         </Box>),
@@ -1431,7 +1554,7 @@ export const register: Register = on => {
         // frecce dei mesi ai due lati; giorno, mese e anno interi in mezzo (nessuno si restringe, così il testo non si taglia)
         // distanze uguali tra tutti i pulsanti (space-between); ogni pulsante largo almeno quanto il suo titolo, testo al centro
         <Box position="relative" flexDirection="row" justifyContent="space-between" alignItems="flex-end" width="100%">
-          <Box flexShrink={0}><Button key="mese-prima" label="◀" minWidth={5} onPress={() => sposta(-1)} /></Box>
+          <Box flexShrink={0}><Button key="mese-prima" label="◀" stretto onPress={() => sposta(-1)} /></Box>
           {([
             [T.giorno, 'giorno', String(s.giorno), Array.from({ length: giorniNelMese(s.anno, s.mese) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v: string) => cambia({ giorno: Number(v) })],
             [T.mese, 'mese', String(s.mese), T.mesi.map((m, i) => ({ value: String(i), label: m })), (v: string) => cambia({ mese: Number(v) })],
@@ -1440,17 +1563,18 @@ export const register: Register = on => {
             <Box key={k} position="relative" flexDirection="column" alignItems="center" gap={0} flexShrink={0}>
               <Text dimColor size="footnote">{nome}</Text>
               {/* un pulsante senza frecce: toccandolo si apre sotto una finestra con le scelte una sotto l'altra */}
-              <Button key={`scegli-${k}`} label={opzioni.find(o => o.value === valore)?.label ?? valore}
-                minWidth={k === 'mese' ? Math.max(nome.length, ...opzioni.map(o => o.label.length)) + 3 : String(s.anno).length + 3}   /* giorno largo come l'anno */ onPress={() => { void update($, menu, (m: string) => (m === k ? '' : k)) }} />
+              <Box flexDirection="row" justifyContent="center" width="100%"><Button key={`scegli-${k}`} label={opzioni.find(o => o.value === valore)?.label ?? valore}
+                stretto   /* 0.9.27: nessuna larghezza minima: ogni casella è stretta quanto la sua scritta */ onPress={() => { void update($, menu, (m: string) => (m === k ? '' : k)) }} /></Box>
               {k === 'anno' && menuAperto === 'anno' && anni.length === 1 ? (
                 // senza larghezza fissa: la finestra prende la misura del suo contenuto, così l'anno si legge intero
-                <Box position="absolute" top={3} right={0} flexDirection="column" alignItems="center" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" padding={1}>
-                  <Button key={`op-anno-${anni[0]}`} label={String(anni[0])} variant="primary" onPress={() => { void cambia({ anno: anni[0] }); void update($, menu, () => '') }} />
-                </Box>
+                // a filo sotto la casella dell'anno, stretta quanto l'anno: l'ancora alta 0 sta subito dopo il pulsante
+                <Box position="relative" height={0} width="100%"><Box position="absolute" top={0} right={0} width={10} flexDirection="row" justifyContent="center" borderStyle="round" borderColor={BLU} backgroundColor="#1c1c1c" paddingX={1} paddingY={0.25}>
+                  <Button key={`op-anno-${anni[0]}`} stretto label={String(anni[0])} variant="primary" onPress={() => { void cambia({ anno: anni[0] }); void update($, menu, () => '') }} />
+                </Box></Box>
               ) : null}
             </Box>
           ))}
-          <Box flexShrink={0}><Button key="mese-dopo" label="▶" minWidth={5} onPress={() => sposta(1)} /></Box>
+          <Box flexShrink={0}><Button key="mese-dopo" label="▶" stretto onPress={() => sposta(1)} /></Box>
           {/* mese e anno: finestra larga quanto tutto il riquadro, le voci una sotto l'altra, sopra il grafico */}
           {menuAperto === 'mese' || (menuAperto === 'anno' && anni.length > 1) ? (
             // griglia disegnata (angoli smussati) con sopra uno strato invisibile che riceve il clic (griglia-clic.tsx)
@@ -1513,17 +1637,26 @@ export const register: Register = on => {
       </Box>,
     )
     // firma centrata in fondo (la nota sugli stati sta nella ⓘ accanto a «bloccate»)
+    // 0.9.27: testo che resta centrato anche quando va a capo (pannello stretto): ogni parola è un pezzo a sé in una riga
+    // che va a capo e centra ogni sua riga; lo spazio dopo la parola è uno spazio che non si spezza
+    const centrato = (testo: string, p: Record<string, unknown>) => (
+      <Box flexDirection="row" flexWrap="wrap" justifyContent="center" width="100%">
+        {String(testo).split(' ').filter(Boolean).map((parola, i, tutte) => <Text {...p}>{parola + (i < tutte.length - 1 ? ' ' : '')}</Text>)}
+      </Box>
+    )
     parti.push(
       <Box flexDirection="column" alignItems="center" width="100%" gap={1}>
-        <Text dimColor size="footnote">{T.creatoDa}</Text>
+        {centrato(T.creatoDa, { dimColor: true, size: 'footnote' })}
         {/* logo e QR in un solo disegno: un clic lo gira nel QR di youppyapps.com, un altro lo rigira (tutto in CSS dentro l'SVG) */}
         {Svg ? <Svg source={LOGO_QR_YOUPPY} alt="YouppyApps: logo e codice QR di youppyapps.com" width={72} height={72} isInteractive /> : null}
-        <Text dimColor size="caption">{T.youppyGira}</Text>
-        <Box flexDirection="column" alignItems="center" gap={0}>{T.youppyDescr.map((riga: string) => <Text size="footnote" color="#e2e8f0">{riga}</Text>)}</Box>   {/* righe corte, centrate e attaccate */}
+        {centrato(T.youppyGira, { dimColor: true, size: 'caption' })}
+        <Box flexDirection="column" alignItems="center" width="100%" gap={0}>{centrato(T.youppyDescr.join(' '), { size: 'footnote', color: '#e2e8f0' })}</Box>   {/* un testo solo: va a capo dove serve, ogni riga piena e centrata */}
         <Text size="footnote"><Link href="https://youppyapps.com" label="youppyapps.com ↗" /></Text>
       </Box>,
     )   // firma dell'autore, logo che si gira nel QR, descrizione e link a YouppyApps
 
+    // riga vuota larga quanto il pannello: misura la larghezza per le finestre (larghezza.tsx)
+    if (Client) parti.push(<Client key="misura-larghezza" module="./larghezza.tsx" width="100%" height={1} props={{}} />)
     return <Box flexDirection="column-reverse" gap={1}>{[...parti].reverse()}</Box>
   })
 }
