@@ -27,6 +27,9 @@ export type Api = {
   scelta?: boolean
   perModello?: Record<string, { lavori: number; costo: number }>
   risparmio?: number
+  // 0.9.24: tetto mensile della Console scelto in config.json (tetto_console, 0 = nessuno) e i lavori registrati (data, costo) per «usati questo mese» e per il credito rimasto
+  tettoConsole?: number
+  righe?: { data?: string; costo: number }[]
   ultimi: { data: string; titolo: string; modello: string; costo: number; minuti?: number; esito?: string; livello?: string }[]
 }
 
@@ -52,6 +55,6 @@ export type Ripiego = { stato: 'in corso' | 'finito' | 'errore'; titolo: string;
 
 declare module 'claude-code' {
   interface PluginState {
-    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; boxApi: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAltro: boolean; tettoErrore: string; tettoDigitato: string; ripiegoAuto: boolean; agenteLavoro: boolean; ripiegoSoglia: number; ripiego: Ripiego | null; ripiegoCoda: number }
+    utilizzo: { dati: Dati | null; limiti: Limite[]; memoria: Memoria | null; scelta: Scelta | null; tutte: boolean; errore: string; aperto: boolean; chatAperte: boolean; comprimi: string; menu: string; info: string; misura: string; chiuso: boolean; api: Api | null; apiAperto: boolean; boxApi: boolean; apiInfo: boolean; altri: Altri | null; strumento: string; prezziAperti: boolean; fornitore: string; giri: number; giriAperto: boolean; ultimoLivello: string; richieste: { ora: number; liv: string; stima: number; costo: number; inCorso: boolean }[]; costoSessione: number; spesaInAttesa: SpesaInAttesa | null; spesaApprovate: SpesaApprovata[]; tettoLavoro: number; tettoAltro: boolean; tettoErrore: string; tettoDigitato: string; ripiegoAuto: boolean; agenteLavoro: boolean; ripiegoSoglia: number; tettoConsole: number; ripiego: Ripiego | null; ripiegoCoda: number }
   }
 }

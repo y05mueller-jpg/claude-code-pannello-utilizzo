@@ -415,6 +415,54 @@ const apiEn: TestiApi = {
   nonAggiornato: 'Could not read API spending',
 }
 export const TESTI_API: Record<Lingua, TestiApi> = { it: apiIt, en: apiEn, de: apiEn, fr: apiEn, es: apiEn }
+// ---- 0.9.24: riga del tetto mensile della Console (cinque lingue). Il pannello non si collega alla Console: il tetto lo sceglie la persona ----
+export type TestiTettoConsole = {
+  alza: string; menu: string; nonImp: string; invito: string
+  riga: (tetto: string, usati: string) => string; raggiunto: string; nota: string
+  stimaNota: (v: string) => string; stimaVuota: (v: string) => string
+}
+const tcIt: TestiTettoConsole = {
+  stimaNota: v => `La stima vale solo se ogni lavoro fatto con l’API viene registrato. I lavori non registrati (altre chiavi, altri computer, server) non si vedono: per il valore vero apri ${v}.`, stimaVuota: v => `Nessun lavoro registrato: la stima non è indicativa. Per il valore vero apri ${v}.`,
+  alza: 'Alza il tetto ↗', menu: 'Tetto', nonImp: 'non impostato',
+  invito: 'Scegli qui sopra il tetto mensile che hai messo nella Console.',
+  riga: (t, u) => `Tetto mensile della Console: ${t} · usati questo mese ≈ ${u}`,
+  raggiunto: 'tetto raggiunto: le richieste API si fermano finché non lo alzi nella Console',
+  nota: 'Questo menu non cambia il tetto vero: dice solo al pannello quanto vale. Il tetto si cambia nella Console. «Usati» conta solo i lavori registrati su questo computer.',
+}
+const tcEn: TestiTettoConsole = {
+  stimaNota: v => `The estimate is only valid if every job done with the API is recorded. Unrecorded jobs (other keys, other computers, servers) are invisible: for the true value open ${v}.`, stimaVuota: v => `No job recorded: the estimate is not indicative. For the true value open ${v}.`,
+  alza: 'Raise the limit ↗', menu: 'Limit', nonImp: 'not set',
+  invito: 'Pick above the monthly limit you set in the Console.',
+  riga: (t, u) => `Console monthly limit: ${t} · used this month ≈ ${u}`,
+  raggiunto: 'limit reached: API requests stop until you raise it in the Console',
+  nota: 'This menu does not change the real limit: it only tells the panel what it is. Change the limit in the Console. “Used” counts only jobs recorded on this computer.',
+}
+const tcDe: TestiTettoConsole = {
+  stimaNota: v => `Die Schätzung gilt nur, wenn jeder Auftrag mit der API aufgezeichnet wird. Nicht aufgezeichnete Aufträge (andere Schlüssel, andere Computer, Server) sieht man nicht: den wahren Wert findest du unter ${v}.`, stimaVuota: v => `Kein Auftrag aufgezeichnet: die Schätzung ist nicht aussagekräftig. Den wahren Wert findest du unter ${v}.`,
+  alza: 'Limit erhöhen ↗', menu: 'Limit', nonImp: 'nicht festgelegt',
+  invito: 'Wähle oben das Monatslimit, das du in der Console gesetzt hast.',
+  riga: (t, u) => `Monatslimit der Console: ${t} · diesen Monat verbraucht ≈ ${u}`,
+  raggiunto: 'Limit erreicht: API-Anfragen stoppen, bis du es in der Console erhöhst',
+  nota: 'Dieses Menü ändert das echte Limit nicht: es sagt dem Panel nur, wie hoch es ist. Das Limit änderst du in der Console. „Verbraucht“ zählt nur Aufträge, die auf diesem Computer protokolliert wurden.',
+}
+const tcFr: TestiTettoConsole = {
+  stimaNota: v => `L’estimation n’est valable que si chaque travail fait avec l’API est enregistré. Les travaux non enregistrés (autres clés, autres ordinateurs, serveurs) restent invisibles : pour la vraie valeur, ouvre ${v}.`, stimaVuota: v => `Aucun travail enregistré : l’estimation n’est pas indicative. Pour la vraie valeur, ouvre ${v}.`,
+  alza: 'Relever le plafond ↗', menu: 'Plafond', nonImp: 'non défini',
+  invito: 'Choisis ci-dessus le plafond mensuel fixé dans la Console.',
+  riga: (t, u) => `Plafond mensuel de la Console : ${t} · utilisé ce mois-ci ≈ ${u}`,
+  raggiunto: 'plafond atteint : les requêtes API s’arrêtent tant que tu ne le relèves pas dans la Console',
+  nota: 'Ce menu ne change pas le vrai plafond : il indique seulement au panneau sa valeur. Le plafond se change dans la Console. « Utilisé » ne compte que les travaux enregistrés sur cet ordinateur.',
+}
+const tcEs: TestiTettoConsole = {
+  stimaNota: v => `La estimación solo vale si cada trabajo hecho con la API queda registrado. Los trabajos no registrados (otras claves, otros equipos, servidores) no se ven: para el valor real abre ${v}.`, stimaVuota: v => `Ningún trabajo registrado: la estimación no es indicativa. Para el valor real abre ${v}.`,
+  alza: 'Subir el límite ↗', menu: 'Límite', nonImp: 'sin definir',
+  invito: 'Elige arriba el límite mensual que pusiste en la Console.',
+  riga: (t, u) => `Límite mensual de la Console: ${t} · usado este mes ≈ ${u}`,
+  raggiunto: 'límite alcanzado: las solicitudes de la API se detienen hasta que lo subas en la Console',
+  nota: 'Este menú no cambia el límite real: solo le dice al panel cuánto vale. El límite se cambia en la Console. «Usado» cuenta solo los trabajos registrados en este equipo.',
+}
+export const TESTI_TETTO_CONSOLE: Record<Lingua, TestiTettoConsole> = { it: tcIt, en: tcEn, de: tcDe, fr: tcFr, es: tcEs }
+
 
 // ---- banner di approvazione spesa sopra la chat (lavori API oltre la soglia) ----
 export type TestiSpesa = {

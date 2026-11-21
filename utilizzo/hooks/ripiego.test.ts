@@ -318,3 +318,108 @@ test('scorrimento senza fine: i dati arrivano comunque dopo al massimo 15 s', as
   await attendiQuiete(() => ora, async (ms: number) => { ora += ms }, 1500, 15000, () => ora)
   expect(ora >= 15000 && ora < 17000).toBe(true)
 })
+
+// ---- 0.9.24: tetto mensile della Console ----
+import { TETTO_CONSOLE_URL, TETTI_CONSOLE, meseUtc, spesaMeseUtc, statoTetto, tettoConsoleValido } from './ripiego'
+
+test('tetto Console: l\'indirizzo e le scelte', () => {
+  expect(TETTO_CONSOLE_URL).toBe('https://platform.claude.com/settings/limits')
+  expect(TETTI_CONSOLE).toEqual([5, 10, 20, 30, 50, 75, 100, 150, 200])
+})
+
+test('tetto Console: stato a 0%, 79,9%, 80%, 100% e oltre', () => {
+  expect(statoTetto(100, 0)).toEqual({ stato: 'normale', percento: 0 })
+  expect(statoTetto(100, 79.9).stato).toBe('normale')
+  expect(statoTetto(100, 80).stato).toBe('vicino')
+  expect(statoTetto(20, 16).stato).toBe('vicino')
+  expect(statoTetto(20, 15.99).stato).toBe('normale')
+  expect(statoTetto(100, 99.99).stato).toBe('vicino')
+  expect(statoTetto(100, 100).stato).toBe('raggiunto')
+  expect(statoTetto(20, 25).stato).toBe('raggiunto')
+  expect(Math.round(statoTetto(20, 6.1).percento)).toBe(31)
+})
+
+test('tetto Console: non impostato (0, vuoto, valori strani)', () => {
+  expect(statoTetto(0, 50).stato).toBe('nonImpostato')
+  expect(statoTetto(-1, 50).stato).toBe('nonImpostato')
+  expect(statoTetto(NaN, 50).stato).toBe('nonImpostato')
+  expect(statoTetto(0, 50).percento).toBe(0)
+})
+
+test('tetto Console: tetto valido (scelta, config, nessuno)', () => {
+  expect(tettoConsoleValido(-1, 0)).toBe(0)
+  expect(tettoConsoleValido(-1, 25)).toBe(25)
+  expect(tettoConsoleValido(50, 25)).toBe(50)
+  expect(tettoConsoleValido(0, 25)).toBe(0)
+  expect(tettoConsoleValido(undefined, undefined)).toBe(0)
+})
+
+test('tetto Console: il mese UTC e la mezzanotte del 1°', () => {
+  expect(meseUtc('2026-11-30T23:59:59Z')).toBe('2026-11')
+  expect(meseUtc('2026-12-01T00:00:00Z')).toBe('2026-12')
+  expect(meseUtc('2026-12-01T01:30:00+02:00')).toBe('2026-11')   // 30.11 alle 23:30 UTC
+  expect(meseUtc('2026-11-30T23:30:00-02:00')).toBe('2026-12')   // 1.12 alle 01:30 UTC
+  expect(meseUtc('boh')).toBe('')
+  expect(meseUtc(undefined)).toBe('')
+})
+
+test('tetto Console: spesa del mese, righe di mesi diversi', () => {
+  const ora = Date.parse('2026-11-15T10:00:00Z')
+  const righe = [
+    { data: '2026-10-31T23:59:59Z', costo: 5 },
+    { data: '2026-11-01T00:00:00Z', costo: 1.5 },
+    { data: '2026-11-14T09:00:00Z', costo: 2.25 },
+    { data: '2026-12-01T00:00:00Z', costo: 7 },
+    { data: 'illeggibile', costo: 9 },
+    { data: '2026-11-20T00:00:00Z', costo: 'x' },
+  ]
+  expect(spesaMeseUtc(righe, ora)).toBe(3.75)
+  expect(spesaMeseUtc([], ora)).toBe(0)
+  expect(spesaMeseUtc(null, ora)).toBe(0)
+  expect(spesaMeseUtc(undefined, ora)).toBe(0)
+})
+
+test('tetto Console: riga a cavallo di mezzanotte UTC del 1°', () => {
+  const righe = [
+    { data: '2026-11-30T23:59:59.999Z', costo: 4 },
+    { data: '2026-12-01T00:00:00.000Z', costo: 1 },
+    { data: '2026-12-01T01:00:00+02:00', costo: 2 },   // = 30.11 alle 23:00 UTC
+  ]
+  expect(spesaMeseUtc(righe, Date.parse('2026-11-30T23:59:59Z'))).toBe(6)
+  expect(spesaMeseUtc(righe, Date.parse('2026-12-01T00:00:00Z'))).toBe(1)
+})
+
+import { spesoSuCrediti } from './ripiego'
+
+test('credito rimasto: un credito scaduto e uno attivo, lavori prima e dopo l\'arrivo', () => {
+  const righe = [
+    { data: '2026-09-10T10:00:00', costo: 3 },   // pagato dal credito vecchio
+    { data: '2026-10-31T23:00:00', costo: 2 },   // idem
+    { data: '2026-11-05T09:00:00', costo: 1.5 },
+    { data: '2026-11-10T09:00:00', costo: 0.5 },
+  ]
+  expect(spesoSuCrediti(righe, [{ arrivo: '2026-11-01' }])).toBe(2)
+})
+
+test('credito rimasto: lavoro nello stesso giorno dell\'arrivo = contato', () => {
+  const righe = [{ data: '2026-11-01T00:00:00', costo: 4 }, { data: '2026-10-31T23:59:59', costo: 9 }]
+  expect(spesoSuCrediti(righe, [{ arrivo: '2026-11-01' }])).toBe(4)
+})
+
+test('credito rimasto: nessun arrivo = si contano tutti i lavori', () => {
+  const righe = [{ data: '2026-01-01T00:00:00', costo: 3 }, { data: '2026-11-05T00:00:00', costo: 2 }]
+  expect(spesoSuCrediti(righe, [{}])).toBe(5)
+  expect(spesoSuCrediti(righe, [{ arrivo: '2026-11-01' }, {}])).toBe(5)
+  expect(spesoSuCrediti(righe, [{ arrivo: 'boh' }])).toBe(5)
+})
+
+test('credito rimasto: due crediti attivi, vale l\'arrivo più vecchio', () => {
+  const righe = [{ data: '2026-09-30T12:00:00', costo: 1 }, { data: '2026-10-05T12:00:00', costo: 2 }, { data: '2026-11-05T12:00:00', costo: 4 }]
+  expect(spesoSuCrediti(righe, [{ arrivo: '2026-11-01' }, { arrivo: '2026-10-01' }])).toBe(6)
+})
+
+test('credito rimasto: data illeggibile contata, elenco assente = null, nessun credito attivo = tutto', () => {
+  expect(spesoSuCrediti([{ data: 'x', costo: 2 }, { data: '2026-11-05T00:00:00', costo: 1 }], [{ arrivo: '2026-11-01' }])).toBe(3)
+  expect(spesoSuCrediti(undefined, [{ arrivo: '2026-11-01' }])).toBe(null)
+  expect(spesoSuCrediti([{ data: '2026-01-01T00:00:00', costo: 2 }], [])).toBe(2)
+})

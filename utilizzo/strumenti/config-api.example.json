@@ -27,5 +27,6 @@
       "cache_letta": 0.01
     }
   },
-  "ricarica": "https://console.anthropic.com/settings/billing"
+  "ricarica": "https://console.anthropic.com/settings/billing",
+  "tetto_console": 20
 }

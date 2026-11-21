@@ -1,6 +1,6 @@
 // Crediti API per il pannello «Utilizzo» (facoltativo): legge ~/.claude/utilizzo-api/config.json (crediti, scadenze, prezzi)
 // e, se c'è, uso.jsonl (una riga per lavoro: { data, titolo, modello, costo }). Solo numeri. Senza config.json la sezione non compare.
-// Uscita (stdout): JSON { crediti, speso, lavori, prezzi, ricarica, chiave, agente, auto, soglia, scelta, perModello, risparmio, ultimi }
+// Uscita (stdout): JSON { crediti, speso, lavori, prezzi, ricarica, chiave, agente, auto, soglia, scelta, perModello, risparmio, ultimi, tettoConsole, righe }
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os');
 const CARTELLA = path.join(os.homedir(), '.claude', 'utilizzo-api');
@@ -26,6 +26,8 @@ const agente = dim('agente.py') > 0 ? path.join(CARTELLA, 'agente.py') : '';
 const auto = config.passaggio_api !== false, soglia = Number(config.soglia_piano) || 90;
 // scelta automatica del modello: lavori per modello e quanto si è risparmiato rispetto a fare tutto con il modello di punta
 const scelta = config.scelta_modello !== false;
+// tetto mensile della Console scelto dalla persona in config.json (tetto_console, dollari; 0 = nessuno). Non si legge dalla Console e non serve nessuna chiave.
+const tettoConsole = Number(config.tetto_console) > 0 ? Number(config.tetto_console) : 0;
 const punta = config.modello_punta || 'claude-opus-5-5', pp = (config.prezzi_per_milione || {})[punta];
 const perModello = {};
 let risparmio = 0;
@@ -40,5 +42,6 @@ for (const l of lavori) {
 process.stdout.write(JSON.stringify({
   crediti: config.crediti, speso, lavori: lavori.length, prezzi: config.prezzi_per_milione, ricarica: config.ricarica,
   presente, chiave: dim('chiave.txt') > 10, agente, auto, soglia, scelta, perModello, risparmio,
+  tettoConsole, righe: lavori.map(l => ({ data: l.data, costo: l.costo })),
   ultimi: lavori.slice(-5).reverse().map(({ u, ...x }) => x),
 }));

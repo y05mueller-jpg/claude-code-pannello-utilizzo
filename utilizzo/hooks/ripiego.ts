@@ -171,3 +171,53 @@ export async function attendiQuiete(ultimo: () => number, pausa: (ms: number) =>
   const inizio = ora()
   while (ora() - ultimo() < quiete && ora() - inizio < massimo) await pausa(Math.max(100, quiete - (ora() - ultimo())))
 }
+
+// ---- 0.9.24: tetto mensile della Console. Il pannello NON si collega alla Console e non usa chiavi: il tetto lo sceglie la persona ----
+export const TETTO_CONSOLE_URL = 'https://platform.claude.com/settings/limits'
+export const TETTI_CONSOLE = [5, 10, 20, 30, 50, 75, 100, 150, 200]
+export type RigaMese = { data?: unknown; costo?: unknown }
+// il mese UTC («AAAA-MM») di un istante; la Console azzera il 1° del mese UTC. Data illeggibile → ''.
+// Una data senza fuso («2026-11-30T23:59:59») la legge JavaScript come ora locale: è il formato che scrive l'aiutante (ora locale, senza fuso).
+export function meseUtc(quando: unknown): string {
+  const t = typeof quando === 'number' ? quando : Date.parse(String(quando ?? ''))
+  return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 7) : ''
+}
+// somma dei costi delle righe di uso.jsonl che cadono nel mese UTC di «ora»
+export function spesaMeseUtc(righe: readonly RigaMese[] | null | undefined, ora: number = Date.now()): number {
+  const mese = meseUtc(ora)
+  if (!mese) return 0
+  let s = 0
+  for (const r of righe ?? []) { const c = Number(r?.costo); if (c > 0 && meseUtc(r?.data) === mese) s += c }
+  return s
+}
+// nonImpostato = nessun tetto scelto; normale < 80%; vicino da 80%; raggiunto da 100%
+export type StatoTetto = 'nonImpostato' | 'normale' | 'vicino' | 'raggiunto'
+export function statoTetto(tetto: number, usati: number): { stato: StatoTetto; percento: number } {
+  const t = Number(tetto), u = Math.max(0, Number(usati) || 0)
+  if (!(t > 0)) return { stato: 'nonImpostato', percento: 0 }
+  // confronti senza divisioni, per non perdere un decimale sulle soglie esatte (80%, 100%)
+  const stato: StatoTetto = u * 100 >= t * 100 ? 'raggiunto' : u * 100 >= t * 80 ? 'vicino' : 'normale'
+  return { stato, percento: (100 * u) / t }
+}
+// il tetto valido: la scelta della persona (0 = «non impostato» scelto apposta), altrimenti quello di config.json, altrimenti nessuno. -1 = mai scelto
+export function tettoConsoleValido(scelto: unknown, daConfig: unknown): number {
+  const s = Number(scelto), c = Number(daConfig)
+  if (Number.isFinite(s) && s >= 0) return s
+  return Number.isFinite(c) && c > 0 ? c : 0
+}
+// 0.9.24: dal credito rimasto si tolgono solo i lavori fatti da quando è arrivato il credito attivo più vecchio (un credito scaduto
+// ha già «pagato» i suoi lavori). Se un credito attivo non ha «arrivo» (o è illeggibile) si contano tutti i lavori, come prima.
+// Un lavoro con data illeggibile si conta; un lavoro nello stesso giorno dell'arrivo si conta. Senza elenco dei lavori → null (si usa il totale).
+export function spesoSuCrediti(righe: readonly RigaMese[] | null | undefined, attivi: readonly { arrivo?: string }[] | null | undefined): number | null {
+  if (!Array.isArray(righe)) return null
+  let da = Infinity
+  for (const c of attivi ?? []) {
+    const t = c?.arrivo ? Date.parse(String(c.arrivo) + 'T00:00:00') : NaN
+    if (!Number.isFinite(t)) { da = -Infinity; break }
+    da = Math.min(da, t)
+  }
+  if (da === Infinity) da = -Infinity   // nessun credito attivo: non cambia niente
+  let s = 0
+  for (const r of righe) { const c = Number(r?.costo); if (!(c > 0)) continue; const t = Date.parse(String(r?.data ?? '')); if (!Number.isFinite(t) || t >= da) s += c }
+  return s
+}
